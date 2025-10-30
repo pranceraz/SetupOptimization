@@ -294,20 +294,45 @@ class ACO_Scheduler:
         print("Convergence plot saved as 'aco_convergence.png'")
 
 
+def parse_problem_data(filename):
+    with open(filename, 'r') as f:
+        lines = [line.strip() for line in f if line.strip()]
+    
+    R = int(lines[0].split('=')[1])
+    Pi = eval(lines[1].split('=')[1])
+    
+    # Parse A matrix
+    a_start = lines.index('A=') + 1
+    a_end = lines.index('Sij=')
+    A = np.array([list(map(int, line.split(','))) 
+                  for line in lines[a_start:a_end]])
+    
+    # Parse Sij matrix
+    sij_start = a_end + 1
+    Sij = np.array([list(map(int, line.split(','))) 
+                    for line in lines[sij_start:]])
+    
+    return R, Pi, A, Sij
+
+
+
 def main():
-    """Example usage"""
+    """Example usage with parsed data"""
     print("ACO for Single Machine Scheduling with Sequence-Dependent Setup Times")
     print("="*70)
 
     # Set random seed for reproducibility
     np.random.seed(42)
 
-    # Generate test jobs
-    n_jobs = 10
+    # Parse actual problem data from file
+    R, Pi, A, Sij = parse_problem_data('shit2.txt')
+    
+    # Create jobs from parsed data
+    n_jobs = R
     jobs = []
     for i in range(n_jobs):
-        processing_time = np.random.uniform(5, 20)
-        due_date = np.random.uniform(30, 100)
+        processing_time = Pi[i]  # Use actual processing times from file
+        due_date = np.random.uniform(30, 100)  # Keep random if not in file
         jobs.append(Job(i, processing_time, due_date))
 
     print(f"\nTest Problem: {n_jobs} jobs")
@@ -315,12 +340,15 @@ def main():
     for job in jobs:
         print(f"  {job}")
 
-    # Generate sequence-dependent setup times
-    setup_times = np.random.uniform(1, 10, (n_jobs, n_jobs))
-    np.fill_diagonal(setup_times, 0)  # No setup when same job
+    # Use actual setup times from file
+    setup_times = Sij.astype(float)  # Convert to float for compatibility
 
-    print("\nSequence-Dependent Setup Time Matrix:")
-    print(setup_times.round(2))
+    print("\nSequence-Dependent Setup Time Matrix (from file):")
+    print(setup_times)
+
+    # Handle precedence constraints from A if needed
+    print(f"\nPrecedence constraints: {A.shape[0]} constraints")
+    print(A)
 
     # Run ACO optimization
     print("\n" + "="*70)
@@ -330,8 +358,8 @@ def main():
     aco = ACO_Scheduler(
         jobs=jobs,
         setup_times=setup_times,
-        num_ants=15,
-        num_iterations=50,
+        num_ants=30,
+        num_iterations=75,
         alpha=1.0,
         beta=2.5,
         rho=0.1,
