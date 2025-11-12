@@ -325,13 +325,13 @@ def main():
     np.random.seed(42)
 
     # Parse actual problem data from file
-    R, Pi, A, Sij = parse_problem_data('shit2.txt')
+    R, Pi, A, Sij = parse_problem_data('sh1.txt')
     
     # Create jobs from parsed data
     n_jobs = R
     jobs = []
     for i in range(n_jobs):
-        processing_time = Pi[i]  # Use actual processing times from file
+        processing_time = Pi[i]  # Use actual processing   times from file
         due_date = np.random.uniform(30, 100)  # Keep random if not in file
         jobs.append(Job(i, processing_time, due_date))
 
