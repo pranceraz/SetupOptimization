@@ -1,380 +1,230 @@
 import numpy as np
-import matplotlib.pyplot as plt
-from typing import List, Tuple, Dict
-import time
+import random
+from job_shop_lib import (
+    JobShopInstance, 
+    SolutionSchedule, 
+    benchmarking
+)
 
-class Job:
-    """Represents a job with processing time and due date"""
-    def __init__(self, job_id: int, processing_time: float, due_date: float = None):
-        self.id = job_id
-        self.processing_time = processing_time
-        self.due_date = due_date if due_date is not None else processing_time * 2 #weird auto assign watch out  
-
-    def __repr__(self):
-        return f"Job({self.id}, p={self.processing_time}, d={self.due_date})"
-
-class ACO_Scheduler:
+class ACO_Solver:
     """
-    Ant Colony Optimization for Single Machine Scheduling 
-    with Sequence-Dependent Setup Times (SMSP-SDST)
+    A skeleton class for an Ant Colony Optimization solver that is
+    compatible with job_shop_lib.
+    
+    "Compatible" means it takes a JobShopInstance as input and
+    returns a SolutionSchedule as output.
+    alpha : pheromone weight, beta: heuristic weight, rho(evaporation rate)
     """
-    def __init__(self, 
-                 jobs: List[Job],
-                 setup_times: np.ndarray,
-                 num_ants: int = 20,
-                 num_iterations: int = 100,
-                 alpha: float = 1.0,  # pheromone importance
-                 beta: float = 2.0,   # heuristic importance
-                 rho: float = 0.1,    # evaporation rate
-                 q0: float = 0.9,     # exploitation vs exploration
-                 initial_pheromone: float = 0.1):
+    def __init__(self, num_ants: int, iterations: int, 
+                 alpha: float, beta: float, rho: float):
         """
-        Initialize ACO scheduler
-
+        Initializes the ACO solver with its hyperparameters.
+        
         Args:
-            jobs: List of Job objects
-            setup_times: Matrix of setup times (n x n)
-            num_ants: Number of ants in colony
-            num_iterations: Number of iterations
-            alpha: Pheromone trail importance
-            beta: Heuristic information importance
-            rho: Pheromone evaporation rate
-            q0: Exploitation parameter (0-1)
-            initial_pheromone: Initial pheromone value
+            num_ants (int): Number of ants (solutions) to build per iteration.
+            iterations (int): Number of "generations" to run.
+            alpha (float): Pheromone influence factor.
+            beta (float): Heuristic influence factor.
+            rho (float): Pheromone evaporation rate (e.g., 0.1).
         """
-        self.jobs = jobs
-        self.n_jobs = len(jobs)
-        self.setup_times = setup_times
         self.num_ants = num_ants
-        self.num_iterations = num_iterations
-        self.alpha = alpha
-        self.beta = beta
-        self.rho = rho
-        self.q0 = q0
+        self.iterations = iterations
+        self.alpha = alpha  # Pheromone influence
+        self.beta = beta    # Heuristic influence
+        self.rho = rho      # Evaporation rate
+        
+        # This will hold our pheromone values.
+        # We use a simple 1D array: one value per *operation*.
+        # This represents the "desirability" of scheduling an operation *now*.
+        self.pheromone_matrix = None
+        
+        self.global_best_schedule = None
 
-        # Initialize pheromone matrix #TODO
-        self.pheromone = np.ones((self.n_jobs, self.n_jobs)) * initial_pheromone
-
-        # Best solution tracking
-        self.best_solution = None
-        self.best_cost = float('inf')
-        self.cost_history = []
-
-    def calculate_heuristic(self) -> np.ndarray:
+    def solve(self, instance: JobShopInstance) -> SolutionSchedule:
         """
-        Calculate heuristic information matrix
-        Using a combination of processing time and setup time
+        Main solving loop. This is the "compatible" entry point.
         """
-        eta = np.zeros((self.n_jobs, self.n_jobs))
+        # Initialize pheromones (e.g., all to 1.0)
+        self._initialize_pheromones(instance)
+        
+        for _ in range(self.iterations):
+            all_ant_schedules = []
+            
+            # 1. CONSTRUCT SOLUTIONS (All Ants)
+            for _ in range(self.num_ants):
+                # This is the core logic: a single ant builds one
+                # full, valid schedule.
+                schedule = self._build_ant_solution(instance)
+                all_ant_schedules.append(schedule)
+            
+            # 2. UPDATE PHEROMONES
+            self._update_pheromones(all_ant_schedules)
+            
+            # 3. UPDATE GLOBAL BEST
+            # Keep track of the best solution found so far
+            for schedule in all_ant_schedules:
+                if (self.global_best_schedule is None or 
+                    schedule.makespan < self.global_best_schedule.makespan):
+                    self.global_best_schedule = schedule
+            
+            print(f"Iteration {_}: Best Makespan = {self.global_best_schedule.makespan}")
 
-        for i in range(self.n_jobs):
-            for j in range(self.n_jobs):
-                if i != j:
-                    # Heuristic: prefer jobs with shorter processing + setup time
-                    total_time = self.jobs[j].processing_time + self.setup_times[i, j]
-                    eta[i, j] = 1.0 / (total_time + 1e-10)
+        return self.global_best_schedule
 
-        return eta
-
-    def calculate_makespan(self, sequence: List[int]) -> float:
-        """Calculate total completion time (makespan) for a sequence"""
-        current_time = 0
-        makespan = 0
-
-        for idx, job_idx in enumerate(sequence):
-            # Add setup time if not first job
-            if idx > 0:
-                prev_job_idx = sequence[idx - 1]
-                current_time += self.setup_times[prev_job_idx, job_idx]
-
-            # Add processing time
-            current_time += self.jobs[job_idx].processing_time
-            makespan = current_time
-
-        return makespan
-
-    def calculate_total_tardiness(self, sequence: List[int]) -> float:
-        """Calculate total tardiness for a sequence"""
-        current_time = 0
-        total_tardiness = 0
-
-        for idx, job_idx in enumerate(sequence):
-            # Add setup time if not first job
-            if idx > 0:
-                prev_job_idx = sequence[idx - 1]
-                current_time += self.setup_times[prev_job_idx, job_idx]
-
-            # Add processing time
-            current_time += self.jobs[job_idx].processing_time
-
-            # Calculate tardiness
-            tardiness = max(0, current_time - self.jobs[job_idx].due_date)
-            total_tardiness += tardiness
-
-        return total_tardiness
-
-    def calculate_total_completion_time(self, sequence: List[int]) -> float:
-        """Calculate sum of completion times for a sequence"""
-        current_time = 0
-        total_completion_time = 0
-
-        for idx, job_idx in enumerate(sequence):
-            # Add setup time if not first job
-            if idx > 0:
-                prev_job_idx = sequence[idx - 1]
-                current_time += self.setup_times[prev_job_idx, job_idx]
-
-            # Add processing time
-            current_time += self.jobs[job_idx].processing_time
-
-            # Add to total completion time
-            total_completion_time += current_time
-
-        return total_completion_time
-
-    def construct_solution(self, eta: np.ndarray) -> Tuple[List[int], float]:
+    def _initialize_pheromones(self, instance: JobShopInstance):
         """
-        Construct a solution using ACO rules
-        Returns: (sequence, cost)
+        Initializes the pheromone matrix.
+        A simple model is one pheromone value per operation.
         """
-        sequence = []
-        available_jobs = set(range(self.n_jobs))
+        # A 1D array of size [num_operations]
+        self.pheromone_matrix = np.ones(instance.num_operations)
 
-        # Start with random job
-        current_job = np.random.choice(list(available_jobs))
-        sequence.append(current_job)
-        available_jobs.remove(current_job)
-
-        # Build rest of sequence
-        while available_jobs:
-            # Calculate probabilities for next job selection
-            probabilities = []
-            available_list = list(available_jobs)
-
-            for next_job in available_list:
-                tau = self.pheromone[current_job, next_job] ** self.alpha
-                eta_val = eta[current_job, next_job] ** self.beta
-                probabilities.append(tau * eta_val)
-
-            # Normalize probabilities
-            prob_sum = sum(probabilities)
-            if prob_sum > 0:
-                probabilities = [p / prob_sum for p in probabilities]
-            else:
-                probabilities = [1.0 / len(available_list)] * len(available_list)
-
-            # Exploitation vs exploration
-            if np.random.random() < self.q0:
-                # Exploitation: choose best
-                next_idx = np.argmax(probabilities)
-            else:
-                # Exploration: probabilistic selection
-                next_idx = np.random.choice(len(available_list), p=probabilities)
-
-            next_job = available_list[next_idx]
-            sequence.append(next_job)
-            available_jobs.remove(next_job)
-            current_job = next_job
-
-        # Calculate cost (using total completion time as default)
-        cost = self.calculate_total_completion_time(sequence)
-
-        return sequence, cost
-
-    def update_pheromones(self, all_solutions: List[Tuple[List[int], float]]):
-        """Update pheromone trails based on solutions"""
-        # Evaporation
-        self.pheromone *= (1 - self.rho)
-
-        # Add pheromone from best solution (elitist strategy)
-        best_sequence, best_cost = min(all_solutions, key=lambda x: x[1])
-
-        if best_cost < self.best_cost:
-            self.best_solution = best_sequence
-            self.best_cost = best_cost
-
-        # Deposit pheromone on best path
-        delta_tau = 1.0 / (best_cost + 1e-10)
-
-        for i in range(len(best_sequence) - 1):
-            current_job = best_sequence[i]
-            next_job = best_sequence[i + 1]
-            self.pheromone[current_job, next_job] += delta_tau
-
-        # Optional: Add pheromone from all ants (weighted)
-        for sequence, cost in all_solutions:
-            delta = 0.1 / (cost + 1e-10)  # Smaller contribution
-            for i in range(len(sequence) - 1):
-                current_job = sequence[i]
-                next_job = sequence[i + 1]
-                self.pheromone[current_job, next_job] += delta
-
-    def optimize(self, verbose: bool = True) -> Tuple[List[int], float]:
+    def _build_ant_solution(self, instance: JobShopInstance) -> SolutionSchedule:
         """
-        Run ACO optimization
-
-        Returns:
-            best_sequence: Optimal job sequence
-            best_cost: Cost of best sequence
+        **THIS IS THE HARDEST AND MOST IMPORTANT PART**
+        Simulates a single ant building a complete schedule.
+        
+        This requires a discrete-event simulation.
+        
+        The ant must:
+        1. Keep track of "ready time" for each machine and each job.
+        2. Maintain a set of "ready operations" (operations whose
+           job-predecessor is done).
+        3. At each "step", choose one operation from the ready set.
+        4. The *choice* is probabilistic, based on:
+           P(op_i) ~ (pheromone[op_i])^alpha * (heuristic[op_i])^beta
+        5. "Schedule" the chosen op, update machine/job ready times,
+           and add the *next* op from that job to the ready set.
+        6. Store the sequence of operations for each machine.
         """
-        eta = self.calculate_heuristic()
+        
+        # --- This is a simplified placeholder ---
+        # The real implementation is a complex loop.
+        
+        # The key to "compatibility" is to return a SolutionSchedule.
+        # The easiest way is to build the machine-level sequences.
+        
+        # `job_sequences[m]` = list of op_ids run on machine `m`
+        job_sequences = [[] for _ in range(instance.num_machines)]
+        
+        # ---
+        # --- YOUR CORE ANT SIMULATION LOGIC GOES HERE ---
+        # This logic would populate the `job_sequences` list.
+        # This is a complex simulation that is the heart of your
+        # ACO implementation.
+        # ---
+        
+        # --- Placeholder: Just make a random (but valid) schedule ---
+        # This uses a simple "dispatching rule" as a stand-in
+        # to show how to build the SolutionSchedule object.
+        
+        # This helper structure tracks the *next* operation for each job
+        next_op_idx = [0] * instance.num_jobs
+        
+        # Pointers to the actual Operation objects
+        job_op_pointers = [instance.jobs[j][0] for j in range(instance.num_jobs)]
+        
+        # Keep track of when machines and jobs are free
+        machine_available_time = [0] * instance.num_machines
+        job_available_time = [0] * instance.num_jobs
+        
+        num_scheduled = 0
+        
+        # This set holds the op_ids that are "ready" to be scheduled
+        ready_ops = set(op.operation_id for op in job_op_pointers)
+        
+        while num_scheduled < instance.num_operations:
+            # --- This is where your ACO logic would be ---
+            # 1. Get all ops in `ready_ops`
+            # 2. Calculate transition probabilities for each
+            #    (using self.pheromone_matrix and a heuristic)
+            # 3. Probabilistically *choose* one operation
+            
+            # --- Placeholder "ant" (just picks randomly) ---
+            chosen_op_id = random.choice(list(ready_ops))
+            ready_ops.remove(chosen_op_id)
+            
+            op = instance.get_operation(chosen_op_id)
+            job_id = op.job_id
+            machine_id = op.machine_id
+            
+            # Calculate start time
+            start_time = max(machine_available_time[machine_id], 
+                             job_available_time[job_id])
+            end_time = start_time + op.duration
+            
+            # Update "clocks"
+            machine_available_time[machine_id] = end_time
+            job_available_time[job_id] = end_time
+            
+            # Add to the machine's sequence
+            job_sequences[machine_id].append(op.operation_id)
+            
+            # Add the *next* operation from this job to the ready set
+            next_op_idx[job_id] += 1
+            if next_op_idx[job_id] < instance.num_operations_per_job(job_id):
+                next_op = instance.jobs[job_id][next_op_idx[job_id]]
+                ready_ops.add(next_op.operation_id)
+                
+            num_scheduled += 1
 
-        for iteration in range(self.num_iterations):
-            # Generate solutions for all ants
-            solutions = []
-            for ant in range(self.num_ants):
-                sequence, cost = self.construct_solution(eta)
-                solutions.append((sequence, cost))
+        # This is the "compatible" part. We use the library's
+        # constructor to build a valid SolutionSchedule object
+        # from the sequences our ant generated.
+        return SolutionSchedule.from_job_sequences(
+            instance=instance, 
+            job_sequences=job_sequences
+        )
 
-            # Update pheromones
-            self.update_pheromones(solutions)
-
-            # Track progress
-            self.cost_history.append(self.best_cost)
-
-            if verbose and (iteration + 1) % 10 == 0:
-                print(f"Iteration {iteration + 1}/{self.num_iterations}, "
-                      f"Best Cost: {self.best_cost:.2f}")
-
-        return self.best_solution, self.best_cost
-
-    def print_solution(self):
-        """Print detailed solution information"""
-        if self.best_solution is None:
-            print("No solution found yet. Run optimize() first.")
-            return
-
-        print("\n" + "="*60)
-        print("OPTIMAL SCHEDULE")
-        print("="*60)
-        print(f"Job Sequence: {[self.jobs[i].id for i in self.best_solution]}")
-        print(f"Total Cost (Sum of Completion Times): {self.best_cost:.2f}")
-        print(f"Total Tardiness: {self.calculate_total_tardiness(self.best_solution):.2f}")
-        print(f"Makespan: {self.calculate_makespan(self.best_solution):.2f}")
-
-        print("\nDetailed Schedule:")
-        print("-"*60)
-        current_time = 0
-
-        for idx, job_idx in enumerate(self.best_solution):
-            job = self.jobs[job_idx]
-
-            # Setup time
-            if idx > 0:
-                prev_job_idx = self.best_solution[idx - 1]
-                setup = self.setup_times[prev_job_idx, job_idx]
-                current_time += setup
-                print(f"  Setup time from Job {self.jobs[prev_job_idx].id} "
-                      f"to Job {job.id}: {setup:.2f}")
-
-            # Processing
-            start_time = current_time
-            current_time += job.processing_time
-            completion_time = current_time
-            tardiness = max(0, completion_time - job.due_date)
-
-            print(f"Job {job.id}: Start={start_time:.2f}, "
-                  f"Process={job.processing_time:.2f}, "
-                  f"Complete={completion_time:.2f}, "
-                  f"Due={job.due_date:.2f}, "
-                  f"Tardiness={tardiness:.2f}")
-
-        print("="*60)
-
-    def plot_convergence(self):
-        """Plot convergence curve"""
-        plt.figure(figsize=(10, 6))
-        plt.plot(self.cost_history, linewidth=2)
-        plt.xlabel('Iteration', fontsize=12)
-        plt.ylabel('Best Cost', fontsize=12)
-        plt.title('ACO Convergence Curve', fontsize=14)
-        plt.grid(True, alpha=0.3)
-        plt.tight_layout()
-        plt.savefig('aco_convergence.png', dpi=300)
-        print("Convergence plot saved as 'aco_convergence.png'")
-
-
-def parse_problem_data(filename):
-    with open(filename, 'r') as f:
-        lines = [line.strip() for line in f if line.strip()]
-    
-    R = int(lines[0].split('=')[1])
-    Pi = eval(lines[1].split('=')[1])
-    
-    # Parse A matrix
-    a_start = lines.index('A=') + 1
-    a_end = lines.index('Sij=')
-    A = np.array([list(map(int, line.split(','))) 
-                  for line in lines[a_start:a_end]])
-    
-    # Parse Sij matrix
-    sij_start = a_end + 1
-    Sij = np.array([list(map(int, line.split(','))) 
-                    for line in lines[sij_start:]])
-    
-    return R, Pi, A, Sij
-
-
-
-def main():
-    """Example usage with parsed data"""
-    print("ACO for Single Machine Scheduling with Sequence-Dependent Setup Times")
-    print("="*70)
-
-    # Set random seed for reproducibility
-    np.random.seed(42)
-
-    # Parse actual problem data from file
-    R, Pi, A, Sij = parse_problem_data('sh1.txt')
-    
-    # Create jobs from parsed data
-    n_jobs = R
-    jobs = []
-    for i in range(n_jobs):
-        processing_time = Pi[i]  # Use actual processing   times from file
-        due_date = np.random.uniform(30, 100)  # Keep random if not in file
-        jobs.append(Job(i, processing_time, due_date))
-
-    print(f"\nTest Problem: {n_jobs} jobs")
-    print("\nJob Details:")
-    for job in jobs:
-        print(f"  {job}")
-
-    # Use actual setup times from file
-    setup_times = Sij.astype(float)  # Convert to float for compatibility
-
-    print("\nSequence-Dependent Setup Time Matrix (from file):")
-    print(setup_times)
-
-    # Handle precedence constraints from A if needed
-    print(f"\nPrecedence constraints: {A.shape[0]} constraints")
-    print(A)
-
-    # Run ACO optimization
-    print("\n" + "="*70)
-    print("Running ACO Optimization...")
-    print("="*70)
-
-    aco = ACO_Scheduler(
-        jobs=jobs,
-        setup_times=setup_times,
-        num_ants=30,
-        num_iterations=75,
-        alpha=1.0,
-        beta=2.5,
-        rho=0.1,
-        q0=0.9
-    )
-
-    start_time = time.time()
-    best_sequence, best_cost = aco.optimize(verbose=True)
-    end_time = time.time()
-
-    print(f"\nOptimization completed in {end_time - start_time:.2f} seconds")
-
-    # Print solution
-    aco.print_solution()
+    def _update_pheromones(self, all_ant_schedules: list[SolutionSchedule]):
+        """
+        Updates the pheromone matrix based on the ants' performance.
+        """
+        # 1. Evaporation
+        self.pheromone_matrix *= (1 - self.rho)
+        
+        # 2. Deposition
+        # Add pheromone based on the *quality* of the schedules
+        for schedule in all_ant_schedules:
+            # Reward is 1 / makespan (we want to minimize makespan)
+            reward = 1.0 / schedule.makespan
+            
+            # ---
+            # --- YOUR DEPOSITION LOGIC HERE ---
+            # This logic needs to update self.pheromone_matrix
+            # based on the `schedule` (e.g., which operations
+            # were used in this good/bad schedule)
+            # ---
+            
+            # Example (if you deposit on all ops in the schedule):
+            for op in schedule.instance.operations:
+                 # This is a naive update. A better one would
+                 # reward operations that were scheduled *early*.
+                 self.pheromone_matrix[op.operation_id] += reward
+                 
+        # (Optional) Add extra "elitist" pheromone 
+        # for the single best schedule found.
+        pass
 
 
 if __name__ == "__main__":
-    main()
+    # Load the instance
+    instance = benchmarking.load_benchmark_instance("ft06")
+    
+    # Create the solver
+    aco_solver = ACO_Solver(
+        num_ants=10, 
+        iterations=5,  # Keep low for a quick test
+        alpha=1.0, 
+        beta=1.0, 
+        rho=0.1
+    )
+    
+    # Solve
+    # The 'solve' method is compatible and returns a SolutionSchedule
+    print("Starting ACO Solver...")
+    best_solution = aco_solver.solve(instance)
+    
+    print("\n--- Solver Finished ---")
+    print(f"Best makespan found: {best_solution.makespan}")
+    print(f"(Optimal makespan for 'ft06' is 55)")
