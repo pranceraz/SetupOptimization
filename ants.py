@@ -150,13 +150,13 @@ class ACO_Solver:
                 ready_ops.add(nxt.operation_id)
 
             num_scheduled += 1
+        # Build machine-wise schedule
+        machine_schedules = [[] for _ in range(self.instance.num_machines)]
+        for sop in scheduled_ops:
+            machine_schedules[sop.machine_id].append(sop)
 
-        sched = Schedule(instance=self.instance, scheduled_ops=scheduled_ops)
-        print("Schedule has", sched.num_scheduled_operations," ops")
-        for sop in sched.schedule:
-            print("op", sop.operation.operation_id, "end", sop.end_time)
-        print("Schedule makespan:", sched.makespan())
-        print("Calculated makespan:", max(sop.end_time for sop in sched.scheduled_ops))
+        sched = Schedule(instance=self.instance, schedule=machine_schedules)
+        
         # for sop in scheduled_ops:
         #     print(f"Op {sop.operation.operation_id}: start={sop.start_time}, end={sop.end_time}, job={sop.operation.job_id}, machine={sop.operation.machine_id}, duration={sop.operation.duration}")
 
@@ -199,13 +199,14 @@ class ACO_Solver:
 
 
 if __name__ == "__main__":
-    instance = benchmarking.load_benchmark_instance("ft06")
+    instance_name: str = "ft06"
+    instance = benchmarking.load_benchmark_instance(instance_name)
     aco_solver = ACO_Solver(
         instance=instance,
-        num_ants=10,
-        iterations=50,
+        num_ants=20,
+        iterations=100,
         alpha=1.0,
-        beta=2.0,
+        beta=1.0,
         rho=0.1,
         q=1.0,
         elitist=True,
@@ -215,4 +216,4 @@ if __name__ == "__main__":
     best_solution = aco_solver.solve()
     print("\n--- Solver Finished ---")
     print(f"Best makespan found: {best_solution.makespan()}")
-    print(f"(Optimal makespan for 'ft06' is 55)")
+    print(f"for {instance_name} is {instance.metadata})")
