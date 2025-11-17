@@ -3,6 +3,7 @@ import job_shop_lib.benchmarking as benchmarking
 #from job_shop_lib.constraint_programming import ORToolsSolver
 from job_shop_lib.graphs import build_disjunctive_graph
 from job_shop_lib.visualization.graphs import plot_disjunctive_graph
+import matplotlib.pyplot as plt
 
 from ants import ACO_Solver
 
@@ -62,4 +63,9 @@ instance = benchmarking.load_benchmark_instance(instance_name)
 
 graph = build_disjunctive_graph(instance)
 # print(graph.nodes_by_type)
-_ = plot_disjunctive_graph(graph, figsize=(6, 4))
+
+
+fig, ax = plot_disjunctive_graph(graph, figsize=(6, 4))
+
+fig.savefig("disjunctive.png", dpi=200, bbox_inches="tight")
+plt.close(fig)
