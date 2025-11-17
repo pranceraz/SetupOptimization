@@ -1,5 +1,6 @@
 import numpy as np
 import random
+import logging
 from typing import List
 from job_shop_lib import (
     JobShopInstance,
@@ -9,6 +10,8 @@ from job_shop_lib import (
     Operation
 )
 
+log = logging.getLogger(__name__)
+np.random.seed(42)
 class ACO_Solver:
     """
     Ant Colony Optimization solver compatible with job_shop_lib.
@@ -70,7 +73,7 @@ class ACO_Solver:
                 self.global_best_schedule = iter_best_schedule
                 self.global_best_seq = iter_best_seq
 
-            print(f"Iteration {i+1}: Best Makespan = {iter_best_schedule.makespan()}, "
+            log.debug(f"Iteration {i+1}: Best Makespan = {iter_best_schedule.makespan()}, "
                   f"Global Best = {self.global_best_schedule.makespan()}")
 
         return self.global_best_schedule
@@ -95,6 +98,7 @@ class ACO_Solver:
         total = float(np.sum(scores))
         if total <= 0.0 or not np.isfinite(total):
             # Fallback: uniform random among ready ops
+            log.warning("choosing random choise->total probabilities are wack! ") 
             return random.choice(ready_ops)
 
         probs = np.array(scores, dtype=np.float64) / total
@@ -204,12 +208,12 @@ if __name__ == "__main__":
     aco_solver = ACO_Solver(
         instance=instance,
         num_ants=20,
-        iterations=100,
+        iterations=1000,
         alpha=1.0,
         beta=1.0,
         rho=0.1,
         q=1.0,
-        elitist=True,
+        elitist=False,
         elitist_factor=1
     )
     print("Starting ACO Solver...")
