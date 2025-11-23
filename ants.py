@@ -10,8 +10,28 @@ from job_shop_lib import (
     Operation
 )
 
+
+
+
+
+
 log = logging.getLogger(__name__)
 np.random.seed(42)
+
+MACHINE_1 = 0
+MACHINE_2 = 1
+MACHINE_3 = 2
+
+job_1 = [Operation(MACHINE_1, 3), Operation(MACHINE_2, 3), Operation(MACHINE_3, 3)]
+job_2 = [Operation(MACHINE_1, 2), Operation(MACHINE_3, 3), Operation(MACHINE_2, 4)]
+job_3 = [Operation(MACHINE_2, 3), Operation(MACHINE_1, 2), Operation(MACHINE_3, 1)]
+
+jobs = [job_1, job_2, job_3]
+
+
+
+
+
 class ACO_Solver:
     """
     Ant Colony Optimization solver compatible with job_shop_lib.
@@ -19,7 +39,7 @@ class ACO_Solver:
     """
     def __init__(self, instance: JobShopInstance, num_ants: int, iterations: int, 
                  alpha: float, beta: float, rho: float, q: float = 1.0,
-                 elitist: bool = True, elitist_factor: int = 1):
+                 elitist: bool = False, elitist_factor: int = 1):
         self.instance = instance
         self.num_ants = num_ants
         self.iterations = iterations
@@ -204,12 +224,18 @@ class ACO_Solver:
 
 if __name__ == "__main__":
     instance_name: str = "ft06"
-    instance = benchmarking.load_benchmark_instance(instance_name)
+    #instance = benchmarking.load_benchmark_instance(instance_name)
+    instance = JobShopInstance(
+    jobs,
+    name="Example",
+    # Any extra parameters are stored inside the
+    # metadata attribute as a dictionary:
+)
     aco_solver = ACO_Solver(
         instance=instance,
-        num_ants=20,
-        iterations=1000,
-        alpha=1.0,
+        num_ants=100,
+        iterations=500,
+        alpha=0.5,
         beta=1.0,
         rho=0.1,
         q=1.0,
@@ -220,4 +246,4 @@ if __name__ == "__main__":
     best_solution = aco_solver.solve()
     print("\n--- Solver Finished ---")
     print(f"Best makespan found: {best_solution.makespan()}")
-    print(f"for {instance_name} is {instance.metadata})")
+    # print(f"for {instance_name} is {instance.metadata})")

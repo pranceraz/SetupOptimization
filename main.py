@@ -1,4 +1,4 @@
-import job_shop_lib
+import job_shop_lib,utils
 from job_shop_lib import JobShopInstance,Operation
 import job_shop_lib.benchmarking as benchmarking 
 #from job_shop_lib.constraint_programming import ORToolsSolver
@@ -23,41 +23,10 @@ import gymnasium
 from gymnasium.spaces import Box
 
 
-
-def inspect_instance(instance_name:str = "ft06"):
-    """
-    Loads the 'ft06' benchmark instance (6 jobs, 6 machines) and
-    prints its structure to the console.
-    """
-    print("Loading 'ft06' benchmark instance...")
-    
-    # This is the line that loads the problem.
-    # 'ft06' is a classic 6x6 problem.
-    instance = benchmarking.load_benchmark_instance(instance_name)
-    
-    print("\n--- Instance Overview ---")
-    print(f"Instance Name: {instance.name}")
-    print(f"Number of Jobs: {instance.num_jobs}")
-    print(f"Number of Machines: {instance.num_machines}")
-    print(f"Total Operations: {instance.num_operations}")
-    
-    # The optimal known makespan for 'ft06' is 55
-    print(f"Known Optimal Makespan: {instance.metadata.get('optimum')}")
-    
-    print("\n--- Job-Operation Structure ---")
-    
-    # instance.jobs is a list of lists.
-    # Each inner list is a job, containing its operations in order.
-    for job_id, job in enumerate(instance.jobs):
-        print(f"--- Job {job_id} ---")
-        
-        for op in job:
-            # Each 'op' is an Operation object
-            print(f"  Operation {op.operation_id:02d} (Job {op.job_id}, Pos {op.position_in_job}): "
-                  f"Runs on Machine {op.machine_id} for {op.duration} units")
-# inspect_instance()
 instance_name: str = "ft06"
 instance = benchmarking.load_benchmark_instance(instance_name)
+
+inspect_instance()
 # aco_solver = ACO_Solver(
 #     instance=instance,
 #     num_ants=20,
@@ -85,8 +54,7 @@ instance = benchmarking.load_benchmark_instance(instance_name)
 # plt.close(fig)
 
 
-env = SingleJobShopGraphEnv(instance)
-obs, _ = env.reset()
-env.action_space = Box(low=np.array([0.1, 5, 0.1]), high=np.array([0.9, 100, 0.9]), shape=(3,), dtype=np.float32)
-
+# env = SingleJobShopGraphEnv(instance)
+# obs, _ = env.reset()
+# env.action_space = Box(low=np.array([0.1, 5, 0.1]), high=np.array([0.9, 100, 0.9]), shape=(3,), dtype=np.float32)
 
