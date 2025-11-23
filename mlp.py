@@ -16,14 +16,14 @@ class ParameterController(nn.Module):
         self.mu_head = nn.Linear(64, action_dim)
 
         self.sigma_head= nn.Linear(64, action_dim)
-        with torch.no_grad():
-            # 1. Alpha & Beta: Bias 0.0 -> Sigmoid(0) = 0.5 -> Scaled to ~2.5 (Middle ground)
-            self.mu_head.bias[0] = 0.0 
-            self.mu_head.bias[1] = 0.0
+        # with torch.no_grad():
+        #     # 1. Alpha & Beta: Bias 0.0 -> Sigmoid(0) = 0.5 -> Scaled to ~2.5 (Middle ground)
+        #     self.mu_head.bias[0] = 0.0 
+        #     self.mu_head.bias[1] = 0.0
             
-            # 2. Rho: Bias -2.0 -> Sigmoid(-2.0) = 0.12 -> Scaled to ~0.12 (High Memory)
-            # This forces the agent to start by "remembering" trails.
-            self.mu_head.bias[2] = -2.0
+        #     # 2. Rho: Bias -2.0 -> Sigmoid(-2.0) = 0.12 -> Scaled to ~0.12 (High Memory)
+        #     # This forces the agent to start by "remembering" trails.
+        #     self.mu_head.bias[2] = -2.0
 
 
     def forward(self, x):
@@ -31,8 +31,8 @@ class ParameterController(nn.Module):
         x = torch.relu(self.fc2(x)) #layer 2 
         x = torch.relu(self.fc3(x)) #layer 3
 
-        mu = torch.sigmoid(self.mu_head(x))
-        sigma = torch.nn.functional.softplus(self.sigma_head(x)) +0.01 #constrain to positive vals for sd
+        mu = self.mu_head(x)
+        sigma = torch.nn.functional.softplus(self.sigma_head(x)) + 0.01 #constrain to positive vals for sd
         return mu, sigma
 
     def get_action(self, state):
@@ -40,15 +40,15 @@ class ParameterController(nn.Module):
         dist = Normal(mu,sigma)
         action = dist.sample()
 
-        action = torch.clamp(action, 0.0, 1.0)
+        #action = torch.clamp(action, 0.0, 1.0)
 
         log.debug(f"action type is {type(action)}")
         log_prob = dist.log_prob(action).sum(dim=-1)
-        log.debug(f"log_prob type is {type(log_prob)}")
+        
         decoded_action = {
-            'alpha': (torch.sigmoid(action[0]).item() * 4.5) + 0.5, 
-            'beta':  (torch.sigmoid(action[1]).item() * 4.0) + 0.1,
-            'rho': (torch.sigmoid(action[2]).item() * 0.68) + 0.01
+            'alpha': (torch.sigmoid(action[0]).item() * 4.9) + 0.1, 
+            'beta':  (torch.sigmoid(action[1]).item() * 4.9) + 0.1,
+            'rho': (torch.sigmoid(action[2]).item() * 0.98) + 0.01
         }
         return decoded_action, log_prob
 

@@ -108,23 +108,36 @@ class ACO_Solver:
         """
         # Compute scores
         scores = []
+        log_scores=[]
         for op_id in ready_ops:
             tau = self.pheromone[last_op,op_id]
             eta = self._visibility(self.op_list[op_id])
-            # Compute desirability
-            score = (tau ** self.alpha) * (eta ** self.beta)
-            scores.append(score)
 
-        total = float(np.sum(scores))
-        if total <= 0.0 or not np.isfinite(total):
-            # Fallback: uniform random among ready ops
-            log.warning("choosing random choise->total probabilities are wack! ") 
-            return random.choice(ready_ops)
+            log_tau = np.log(tau + 1e-9)
+            log_eta = np.log(eta + 1e-9)
 
-        probs = np.array(scores, dtype=np.float64) / total
-        # Numerical safety
-        probs = probs / probs.sum()
+            log_score = (self.alpha * log_tau) + (self.beta * log_eta)
+            log_scores.append(log_score)
+
+        log_scores = np.array(log_scores)
+        log_scores_shifted = log_scores - np.max(log_scores)
+        unnormalized_probs = np.exp(log_scores_shifted)
+        probs = unnormalized_probs / unnormalized_probs.sum()
         return int(np.random.choice(ready_ops, p=probs))
+            # Compute desirability
+            # score = (tau ** self.alpha) * (eta ** self.beta)
+            # scores.append(score)
+
+        # total = float(np.sum(scores))
+        # if total <= 0.0 or not np.isfinite(total):
+        #     # Fallback: uniform random among ready ops
+        #     log.warning("choosing random choise->total probabilities are wack! ") 
+        # #     return random.choice(ready_ops)
+
+        # probs = np.array(scores, dtype=np.float64) / total
+        # # Numerical safety
+        # probs = probs / probs.sum()
+        # return int(np.random.choice(ready_ops, p=probs))
 
     def _build_ant_solution(self) -> tuple[Schedule, list[int]]:
         """
@@ -211,6 +224,7 @@ class ACO_Solver:
                 self.pheromone[curr,next_op] += reward
 
                 curr = next_op
+        np.clip(self.pheromone, 0.01, 5.0, out=self.pheromone)        
 
         # 3) Elitist reinforcement (optional)
         # if self.elitist and ant_schedules:
