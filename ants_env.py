@@ -1,3 +1,5 @@
+#ants_env.py
+
 from ants import ACO_Solver
 import numpy as np
 import torch
@@ -13,8 +15,8 @@ class SteppableACO(ACO_Solver):
         self.stagnation_counter = 0
         self.last_best_makespan = float('inf')
         self.num_ops = self.instance.num_operations
-        self.pheromone = np.ones((self.num_ops + 1, self.num_ops), dtype=np.float64)
-
+        self.pheromone = np.full((self.num_ops + 1, self.num_ops),0.5, dtype=np.float64)
+        self.initial_makespan = 5000.0
     def set_params(self, alpha, beta, rho):
         """Update parameters dynamically."""
         self.alpha = float(np.clip(alpha, 0.1, 5.0))
@@ -46,7 +48,11 @@ class SteppableACO(ACO_Solver):
         """
         # Feature 1: Normalized Makespan
         current_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else 5000
-        norm_makespan = current_makespan / 5000.0
+        if self.initial_makespan == 5000.0 and self.global_best_schedule:
+             self.initial_makespan = current_makespan
+        # Use first makespan (or known upper bound for this problem size)
+        norm_makespan = current_makespan / self.initial_makespan
+
         
         # Feature 2: Chaos Score (The "State" you want to see)
         chaos_score = self._calculate_chaos_score()

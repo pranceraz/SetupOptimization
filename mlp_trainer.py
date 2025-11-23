@@ -16,9 +16,9 @@ def train_nn_aco(instance_name):
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
-        num_ants=100, 
+        num_ants=200, 
         iterations=0, 
-        alpha=1.0, beta=1, rho=0.1        
+        alpha=1.0, beta=1, rho=0.1,q= 0.05      
     )
 
     # We must build one solution so 'global_best_schedule' exists
@@ -31,7 +31,7 @@ def train_nn_aco(instance_name):
     controller = ParameterController(input_dim=6, action_dim=3)
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
-    MAX_STEPS = 20
+    MAX_STEPS = 200
     BATCH_ITERS = 50
 
     print(f"Initial Makespan: {aco.global_best_schedule.makespan()}")
@@ -92,4 +92,4 @@ def train_nn_aco(instance_name):
     print(f"Final Makespan: {aco.global_best_schedule.makespan()}")
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft10")
+    train_nn_aco(instance_name="ta02")

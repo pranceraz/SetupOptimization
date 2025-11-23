@@ -1,3 +1,4 @@
+#ants.py
 import numpy as np
 import random
 import logging
@@ -50,12 +51,20 @@ class ACO_Solver:
         self.elitist = elitist
         self.elitist_factor = elitist_factor
         self.num_ops = self.instance.num_operations
-        self.pheromone = np.ones((self.num_ops + 1, self.num_ops), dtype=np.float64)
+
+        self.pheromone = np.full((self.num_ops + 1, self.num_ops),0.5, dtype=np.float64)
         self.op_list: List[Operation] = []
         for job in self.instance.jobs:
             for op in job:
                 self.op_list.append(op)
-
+        self.heuristic_cache = np.zeros(self.num_ops, dtype=np.float32)
+        
+        for job in self.instance.jobs:
+            accumulated_duration = 0
+            # Walk backwards from the last op of the job to the first
+            for op in reversed(job):
+                accumulated_duration += op.duration
+                self.heuristic_cache[op.operation_id] = accumulated_duration
 
         self.global_best_schedule: Schedule | None = None
         self.global_best_seq: list[int] | None = None  # sequence of op_ids in scheduling order
@@ -100,7 +109,8 @@ class ACO_Solver:
 
     def _visibility(self, op: Operation) -> float:
         # Greedy heuristic: inverse of duration (avoid div by zero)
-        return 1.0 / (op.duration + 1e-6)
+        #return 1.0 / (op.duration + 1e-6)
+        return self.heuristic_cache[op.operation_id]
 
     def _ant_brain(self, ready_ops: list[int],last_op:int) -> int:
         """
@@ -213,11 +223,13 @@ class ACO_Solver:
         # 1) Evaporation
         self.pheromone *= (1.0 - self.rho)
 
+        batch_best_makespan = min(s.makespan() for s in ant_schedules)
+        dynamic_Q = (self.q * batch_best_makespan) /self.num_ants
         # 2) Deposition from all ants
         for sched, seq in zip(ant_schedules, ant_sequences):
-            reward = self.q / max(1e-6, float(sched.makespan()))
+            current_makespan = max(1e-6, float(sched.makespan()))
             # Deposit on operations that were used (sequence encodes order)
-
+            reward = dynamic_Q /current_makespan
             curr = self.num_ops
 
             for next_op in seq:
