@@ -18,15 +18,15 @@ from job_shop_lib import (
 log = logging.getLogger(__name__)
 np.random.seed(42)
 
-MACHINE_1 = 0
-MACHINE_2 = 1
-MACHINE_3 = 2
+# MACHINE_1 = 0
+# MACHINE_2 = 1
+# MACHINE_3 = 2
 
-job_1 = [Operation(MACHINE_1, 3), Operation(MACHINE_2, 3), Operation(MACHINE_3, 3)]
-job_2 = [Operation(MACHINE_1, 2), Operation(MACHINE_3, 3), Operation(MACHINE_2, 4)]
-job_3 = [Operation(MACHINE_2, 3), Operation(MACHINE_1, 2), Operation(MACHINE_3, 1)]
+# job_1 = [Operation(MACHINE_1, 3), Operation(MACHINE_2, 3), Operation(MACHINE_3, 3)]
+# job_2 = [Operation(MACHINE_1, 2), Operation(MACHINE_3, 3), Operation(MACHINE_2, 4)]
+# job_3 = [Operation(MACHINE_2, 3), Operation(MACHINE_1, 2), Operation(MACHINE_3, 1)]
 
-jobs = [job_1, job_2, job_3]
+# jobs = [job_1, job_2, job_3]
 
 
 
@@ -49,13 +49,13 @@ class ACO_Solver:
         self.q = q  # scaling for deposition
         self.elitist = elitist
         self.elitist_factor = elitist_factor
+        self.num_ops = self.instance.num_operations
+        self.pheromone = np.ones((self.num_ops + 1, self.num_ops), dtype=np.float64)
         self.op_list: List[Operation] = []
         for job in self.instance.jobs:
             for op in job:
                 self.op_list.append(op)
 
-        # One pheromone value per operation id (0..num_operations-1)
-        self.pheromone = np.ones(self.instance.num_operations, dtype=np.float64)
 
         self.global_best_schedule: Schedule | None = None
         self.global_best_seq: list[int] | None = None  # sequence of op_ids in scheduling order
@@ -102,14 +102,14 @@ class ACO_Solver:
         # Greedy heuristic: inverse of duration (avoid div by zero)
         return 1.0 / (op.duration + 1e-6)
 
-    def _ant_brain(self, ready_ops: list[int]) -> int:
+    def _ant_brain(self, ready_ops: list[int],last_op:int) -> int:
         """
         Selects one operation id from ready_ops using pheromone and heuristic.
         """
         # Compute scores
         scores = []
         for op_id in ready_ops:
-            tau = self.pheromone[op_id]
+            tau = self.pheromone[last_op,op_id]
             eta = self._visibility(self.op_list[op_id])
             # Compute desirability
             score = (tau ** self.alpha) * (eta ** self.beta)
@@ -144,8 +144,10 @@ class ACO_Solver:
         num_scheduled = 0
         ready_ops = set(op.operation_id for op in job_op_pointers)
 
-        while num_scheduled < self.instance.num_operations:
-            chosen_op_id = self._ant_brain(list(ready_ops))
+        last_op = self.num_ops
+
+        while num_scheduled < self.num_ops:
+            chosen_op_id = self._ant_brain(list(ready_ops),last_op=last_op)
             ready_ops.remove(chosen_op_id)
 
             op = self.op_list[chosen_op_id]
@@ -166,6 +168,8 @@ class ACO_Solver:
                 machine_id= op.machine_id # watch out for bug if multiple machines can perform the same problem
             ))
             seq.append(op.operation_id)
+
+            last_op = chosen_op_id
 
             # Advance job pointer and add next op if any
             next_op_idx[job_id] += 1
@@ -200,26 +204,31 @@ class ACO_Solver:
         for sched, seq in zip(ant_schedules, ant_sequences):
             reward = self.q / max(1e-6, float(sched.makespan()))
             # Deposit on operations that were used (sequence encodes order)
-            for op_id in seq:
-                self.pheromone[op_id] += reward
+
+            curr = self.num_ops
+
+            for next_op in seq:
+                self.pheromone[curr,next_op] += reward
+
+                curr = next_op
 
         # 3) Elitist reinforcement (optional)
-        if self.elitist and ant_schedules:
-            # Iteration best
-            idx = int(np.argmin([s.makespan() for s in ant_schedules]))
-            iter_best = ant_schedules[idx]
-            iter_seq = ant_sequences[idx]
-            iter_reward = self.q / max(1e-6, float(iter_best.makespan()))
-            for _ in range(self.elitist_factor):
-                for op_id in iter_seq:
-                    self.pheromone[op_id] += iter_reward
+        # if self.elitist and ant_schedules:
+        #     # Iteration best
+        #     idx = int(np.argmin([s.makespan() for s in ant_schedules]))
+        #     iter_best = ant_schedules[idx]
+        #     iter_seq = ant_sequences[idx]
+        #     iter_reward = self.q / max(1e-6, float(iter_best.makespan()))
+        #     for _ in range(self.elitist_factor):
+        #         for op_id in iter_seq:
+        #             self.pheromone[op_id] += iter_reward
 
-            # Global best
-            if self.global_best_schedule is not None and self.global_best_seq is not None:
-                glob_reward = self.q / max(1e-6, float(self.global_best_schedule.makespan()))
-                for _ in range(self.elitist_factor):
-                    for op_id in self.global_best_seq:
-                        self.pheromone[op_id] += glob_reward
+        #     # Global best
+        #     if self.global_best_schedule is not None and self.global_best_seq is not None:
+        #         glob_reward = self.q / max(1e-6, float(self.global_best_schedule.makespan()))
+        #         for _ in range(self.elitist_factor):
+        #             for op_id in self.global_best_seq:
+        #                 self.pheromone[op_id] += glob_reward
 
 
 if __name__ == "__main__":

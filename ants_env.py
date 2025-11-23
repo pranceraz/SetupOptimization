@@ -12,6 +12,8 @@ class SteppableACO(ACO_Solver):
         # RL Tracking (Observation Only)
         self.stagnation_counter = 0
         self.last_best_makespan = float('inf')
+        self.num_ops = self.instance.num_operations
+        self.pheromone = np.ones((self.num_ops + 1, self.num_ops), dtype=np.float64)
 
     def set_params(self, alpha, beta, rho):
         """Update parameters dynamically."""

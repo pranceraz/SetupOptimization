@@ -21,12 +21,12 @@ from ants import ACO_Solver
 # import torch
 import gymnasium
 from gymnasium.spaces import Box
+import utils
 
-
-instance_name: str = "ft06"
+instance_name: str = "ta02"
 instance = benchmarking.load_benchmark_instance(instance_name)
 
-inspect_instance()
+#inspect_instance()
 # aco_solver = ACO_Solver(
 #     instance=instance,
 #     num_ants=20,
@@ -44,14 +44,15 @@ inspect_instance()
 # print(f"Best makespan found: {best_solution.makespan()}")
 # print(f"for {instance_name} is {instance.metadata})")
 
-# graph = build_disjunctive_graph(instance)
+graph = build_disjunctive_graph(instance)
+
 # print(graph.nodes_by_type)
 
 
-# fig, ax = plot_disjunctive_graph(graph, figsize=(6, 4))
+fig, ax = plot_disjunctive_graph(graph, figsize=(6, 4))
 
-# fig.savefig("disjunctive.png", dpi=200, bbox_inches="tight")
-# plt.close(fig)
+fig.savefig("disjunctive.png", dpi=200, bbox_inches="tight")
+plt.close(fig)
 
 
 # env = SingleJobShopGraphEnv(instance)

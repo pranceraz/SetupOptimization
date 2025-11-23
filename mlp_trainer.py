@@ -4,7 +4,7 @@ from mlp import ParameterController
 import torch
 import torch.optim as optim
 import logging
-
+import utils
 # Configure logging
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -12,16 +12,15 @@ log = logging.getLogger(__name__)
 def train_nn_aco(instance_name):
     # 1. Setup
     instance = benchmarking.load_benchmark_instance(instance_name)
-    
+    utils.inspect_instance(instance_name)
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
         num_ants=100, 
         iterations=0, 
-        alpha=1.0, beta=1.0, rho=0.1        
+        alpha=1.0, beta=1, rho=0.1        
     )
 
-    # --- FIX: MANUALLY GENERATE FIRST SOLUTION ---
     # We must build one solution so 'global_best_schedule' exists
     sched, seq = aco._build_ant_solution()
     aco.global_best_schedule = sched
@@ -33,7 +32,7 @@ def train_nn_aco(instance_name):
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
     MAX_STEPS = 20
-    BATCH_ITERS = 20
+    BATCH_ITERS = 50
 
     print(f"Initial Makespan: {aco.global_best_schedule.makespan()}")
     
@@ -85,7 +84,7 @@ def train_nn_aco(instance_name):
             optimizer.step()
         
         # Periodic Print
-        if step % 5 == 0:
+        if step % 1 == 0:
             print(f"Step {step} | Best: {current_best} | "
                   f"Params: A={action_dict['alpha']:.2f} B={action_dict['beta']:.2f} R={action_dict['rho']:.2f} | "
                   f"Reward: {reward:.2f}")
@@ -93,4 +92,4 @@ def train_nn_aco(instance_name):
     print(f"Final Makespan: {aco.global_best_schedule.makespan()}")
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ta02")
+    train_nn_aco(instance_name="ft10")
