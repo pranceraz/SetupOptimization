@@ -110,6 +110,9 @@ class SteppableACO(ACO_Solver):
         start_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else float('inf')
         batch_chaos_scores = []
         iter_best_makespans = []
+        
+
+        log.info(f"Start of batch: pheromone sum = {np.sum(self.pheromone):.2f}")
 
         for _ in range(num_iterations):
             ant_schedules = []
@@ -120,7 +123,7 @@ class SteppableACO(ACO_Solver):
                 sched, seq = self._build_ant_solution()
                 ant_schedules.append(sched)
                 ant_sequences.append(seq)
-
+        
             # --- Update pheromones ---
             self._update_pheromones(ant_schedules, ant_sequences)
 
@@ -144,6 +147,7 @@ class SteppableACO(ACO_Solver):
         new_makespan = self.global_best_schedule.makespan()
         avg_chaos = np.mean(batch_chaos_scores)
         batch_best_makespan = min(iter_best_makespans)
+        log.info(f"End of batch: pheromone sum = {np.sum(self.pheromone):.2f}")
 
         # Update stagnation counter
         if new_makespan < self.last_best_makespan:

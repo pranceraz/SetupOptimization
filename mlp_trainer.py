@@ -36,7 +36,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
       
-    checkpoint_file = "parameter_controller_checkpoint.pth"
+    checkpoint_file = "150_steps.pth"
     start_step = 0
     if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
         print(f"Checkpoint found! Loading {checkpoint_file} ...")
