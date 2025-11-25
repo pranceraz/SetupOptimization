@@ -124,4 +124,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ta01", LOAD_CHECKPOINT= False)
+    train_nn_aco(instance_name="ta01", LOAD_CHECKPOINT= True)
