@@ -4,6 +4,7 @@ from ants import ACO_Solver
 import numpy as np
 import torch
 import logging
+from multiprocessing import Pool, cpu_count
 
 log = logging.getLogger(__name__)
 
@@ -120,3 +121,13 @@ class SteppableACO(ACO_Solver):
         improvement = start_makespan - new_makespan
         
         return improvement, avg_chaos,iter_best_makespans
+    
+    def _parallel_build_solutions(self):
+        """Runs ant solution construction in parallel across CPU cores."""
+        with Pool(processes=cpu_count()) as pool:
+            results = pool.map(
+                ACO_Solver._build_solution_static,
+                [(self, i) for i in range(self.num_ants)]
+            )
+        ant_schedules, ant_sequences = zip(*results)
+        return list(ant_schedules), list(ant_sequences)
