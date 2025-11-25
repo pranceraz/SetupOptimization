@@ -3,10 +3,17 @@
 from ants import ACO_Solver
 import numpy as np
 import torch
-import logging
+import logging,random
 from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor
 
+
+SEED = 42
+np.random.seed(SEED)
+random.seed(SEED)
+torch.manual_seed(SEED)
 log = logging.getLogger(__name__)
+
 
 class SteppableACO(ACO_Solver):
     def __init__(self, *args, **kwargs):
@@ -69,65 +76,83 @@ class SteppableACO(ACO_Solver):
             self.rho,
             norm_stagnation 
         ], dtype=torch.float32)
+    
+
+    @staticmethod
+    def _build_solution_static(args):
+        """
+        Static method for parallel building. Supports deterministic per-thread seeds.
+        """
+        self_obj, seed = args
+        np.random.seed(seed)
+        random.seed(seed)
+        return self_obj._build_ant_solution()
+
+    def _parallel_build_solutions(self):
+        """
+        Builds solutions in parallel using threads (lighter than multiprocessing on Windows).
+        """
+        seeds = list(range(self.num_ants))
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(
+                SteppableACO._build_solution_static,
+                [(self, s) for s in seeds]
+            ))
+
+        ant_schedules, ant_sequences = zip(*results)
+        return list(ant_schedules), list(ant_sequences)
 
     def run_batch(self, num_iterations=10):
         """
-        Runs the ACO for a batch.
-        Returns: (improvement, average_chaos_score)
+        Runs the ACO for a batch sequentially.
+        Returns: (improvement, avg_chaos, batch_best_makespan)
         """
         start_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else float('inf')
         batch_chaos_scores = []
-        iter_best_makespans = []   
-        
+        iter_best_makespans = []
+
         for _ in range(num_iterations):
             ant_schedules = []
             ant_sequences = []
 
-            # 1. Build Solutions
+            # --- Build solutions sequentially ---
             for _ in range(self.num_ants):
                 sched, seq = self._build_ant_solution()
                 ant_schedules.append(sched)
                 ant_sequences.append(seq)
 
-            # 2. Update Pheromones (Normal ACO logic)
+            # --- Update pheromones ---
             self._update_pheromones(ant_schedules, ant_sequences)
 
-            # 3. Measure State (Chaos)
+            # --- Measure chaos ---
             chaos = self._calculate_chaos_score()
             batch_chaos_scores.append(chaos)
 
-            # 4. Update Best
+            # --- Track batch best ---
             iter_best_idx = int(np.argmin([s.makespan() for s in ant_schedules]))
             iter_best_schedule = ant_schedules[iter_best_idx]
             iter_best_seq = ant_sequences[iter_best_idx]
+
             iter_best_makespans.append(iter_best_schedule.makespan())
 
+            # --- Update global best ---
             if self.global_best_schedule is None or iter_best_schedule.makespan() < self.global_best_schedule.makespan():
                 self.global_best_schedule = iter_best_schedule
                 self.global_best_seq = iter_best_seq
-        
-        # --- Post-Batch Analysis ---
+
+        # --- Post-batch analysis ---
         new_makespan = self.global_best_schedule.makespan()
         avg_chaos = np.mean(batch_chaos_scores)
-        
-        # Update Stagnation Counter (Just for tracking/NN input)
+        batch_best_makespan = min(iter_best_makespans)
+
+        # Update stagnation counter
         if new_makespan < self.last_best_makespan:
             self.stagnation_counter = 0
             self.last_best_makespan = new_makespan
         else:
             self.stagnation_counter += 1
-           
+
+        log.info(f"[Sequential] Batch Best Makespan: {batch_best_makespan}, Avg Chaos: {avg_chaos:.3f}")
 
         improvement = start_makespan - new_makespan
-        
-        return improvement, avg_chaos,iter_best_makespans
-    
-    def _parallel_build_solutions(self):
-        """Runs ant solution construction in parallel across CPU cores."""
-        with Pool(processes=cpu_count()) as pool:
-            results = pool.map(
-                ACO_Solver._build_solution_static,
-                [(self, i) for i in range(self.num_ants)]
-            )
-        ant_schedules, ant_sequences = zip(*results)
-        return list(ant_schedules), list(ant_sequences)
+        return improvement, avg_chaos

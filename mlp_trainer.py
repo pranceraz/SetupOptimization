@@ -66,11 +66,8 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         aco.set_params(action_dict['alpha'], action_dict['beta'], action_dict['rho'])
         
         # D. Run Batch
-        improvement, avg_chaos,iter_best_makespans = aco.run_batch(num_iterations=BATCH_ITERS)
+        improvement, avg_chaos= aco.run_batch(num_iterations=BATCH_ITERS)
         current_best = aco.global_best_schedule.makespan()
-
-        batch_best_makespan = min(iter_best_makespans)  # best makespan of this batch
-        log.info(f"Batch Best Makespan: {batch_best_makespan}")
         
         # E. Calculate Reward
         if improvement > 0:
