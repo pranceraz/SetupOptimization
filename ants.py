@@ -3,6 +3,7 @@ import numpy as np
 import random
 import logging
 from typing import List
+from multiprocessing import Pool, cpu_count
 from job_shop_lib import (
     JobShopInstance,
     benchmarking,
@@ -80,9 +81,8 @@ class ACO_Solver:
         print(f"Initial Makespan: {self.global_best_schedule.makespan()}")
 
         for i in range(self.iterations):
-            ant_schedules = []
-            ant_sequences = []
 
+            ant_schedules, ant_sequences = self._parallel_build_solutions()
             # Construct solutions
             for _ in range(self.num_ants):
                 sched, seq = self._build_ant_solution()
@@ -255,23 +255,32 @@ class ACO_Solver:
         #         for _ in range(self.elitist_factor):
         #             for op_id in self.global_best_seq:
         #                 self.pheromone[op_id] += glob_reward
+    
+    @staticmethod
     def _build_solution_static(args):
-        """Static method wrapper because Windows cannot pickle bound methods."""
-        self_obj, _ = args
+        self_obj, seed = args
+        
+        np.random.seed(seed)
+        random.seed(seed)
+
         return self_obj._build_ant_solution()
+
+
     def _parallel_build_solutions(self):
-        """Runs ant solution construction in parallel across CPU cores."""
         from multiprocessing import Pool, cpu_count
-
-        with Pool(processes=cpu_count()) as pool:
+        
+        # deterministic seed for each ant
+        seeds = [12345 + i for i in range(self.num_ants)]
+        
+        with Pool(cpu_count()) as pool:
             results = pool.map(
-                SteppableACO._build_solution_static,
-                [(self, i) for i in range(self.num_ants)]
+                ACO_Solver._build_solution_static,
+                [(self, seeds[i]) for i in range(self.num_ants)]
             )
-
-        # Unzip
+        
         ant_schedules, ant_sequences = zip(*results)
         return list(ant_schedules), list(ant_sequences)
+
 
 if __name__ == "__main__":
     instance_name: str = "ft06"

@@ -76,6 +76,7 @@ class SteppableACO(ACO_Solver):
         """
         start_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else float('inf')
         batch_chaos_scores = []
+        iter_best_makespans = []   
         
         for _ in range(num_iterations):
             ant_schedules = []
@@ -98,6 +99,7 @@ class SteppableACO(ACO_Solver):
             iter_best_idx = int(np.argmin([s.makespan() for s in ant_schedules]))
             iter_best_schedule = ant_schedules[iter_best_idx]
             iter_best_seq = ant_sequences[iter_best_idx]
+            iter_best_makespans.append(iter_best_schedule.makespan())
 
             if self.global_best_schedule is None or iter_best_schedule.makespan() < self.global_best_schedule.makespan():
                 self.global_best_schedule = iter_best_schedule
@@ -117,4 +119,4 @@ class SteppableACO(ACO_Solver):
 
         improvement = start_makespan - new_makespan
         
-        return improvement, avg_chaos
+        return improvement, avg_chaos,iter_best_makespans
