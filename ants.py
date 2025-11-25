@@ -255,7 +255,23 @@ class ACO_Solver:
         #         for _ in range(self.elitist_factor):
         #             for op_id in self.global_best_seq:
         #                 self.pheromone[op_id] += glob_reward
+    def _build_solution_static(args):
+        """Static method wrapper because Windows cannot pickle bound methods."""
+        self_obj, _ = args
+        return self_obj._build_ant_solution()
+    def _parallel_build_solutions(self):
+        """Runs ant solution construction in parallel across CPU cores."""
+        from multiprocessing import Pool, cpu_count
 
+        with Pool(processes=cpu_count()) as pool:
+            results = pool.map(
+                SteppableACO._build_solution_static,
+                [(self, i) for i in range(self.num_ants)]
+            )
+
+        # Unzip
+        ant_schedules, ant_sequences = zip(*results)
+        return list(ant_schedules), list(ant_sequences)
 
 if __name__ == "__main__":
     instance_name: str = "ft06"

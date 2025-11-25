@@ -3,13 +3,13 @@ from ants_env import SteppableACO
 from mlp import ParameterController
 import torch
 import torch.optim as optim
-import logging
+import logging, os
 import utils
 # Configure logging
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 
-def train_nn_aco(instance_name):
+def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # 1. Setup
     instance = benchmarking.load_benchmark_instance(instance_name)
     utils.inspect_instance(instance_name)
@@ -28,15 +28,34 @@ def train_nn_aco(instance_name):
     # ---------------------------------------------
 
     # Initialize Controller
+
+   
+
     controller = ParameterController(input_dim=6, action_dim=3)
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
+
+      
+    checkpoint_file = "parameter_controller_checkpoint.pth"
+    start_step = 0
+    if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
+        print(f"Checkpoint found! Loading {checkpoint_file} ...")
+        checkpoint = torch.load(checkpoint_file, map_location="cpu")
+
+        controller.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        start_step = checkpoint["step"] + 1
+
+        print(f"Resuming training from step {start_step}")
+        
+    else:
+        print("No checkpoint found. Starting fresh training.")
 
     MAX_STEPS = 200
     BATCH_ITERS = 50
 
     print(f"Initial Makespan: {aco.global_best_schedule.makespan()}")
     
-    for step in range(MAX_STEPS):
+    for step in range(start_step, MAX_STEPS):
         # A. Get State
         state = aco.get_state()
         
@@ -85,9 +104,14 @@ def train_nn_aco(instance_name):
         
         # Periodic Print
         if (step + 1) % 25 == 0:
-            checkpoint_path = f"parameter_controller_step{step+1}.pth"
-            torch.save(controller.state_dict(), checkpoint_path)
-            print(f"Checkpoint saved at step {step+1} -> {checkpoint_path}")
+            checkpoint = {
+                "model_state_dict": controller.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "step": step
+            }
+            torch.save(checkpoint, checkpoint_file)
+            print(f"Checkpoint saved at step {step+1} -> {checkpoint_file}")
+
         if step % 1 == 0:
             print(f"Step {step} | Best: {current_best} | "
                 f"Params: A={action_dict['alpha']:.2f} B={action_dict['beta']:.2f} R={action_dict['rho']:.2f} | "
@@ -99,4 +123,4 @@ def train_nn_aco(instance_name):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft06")
+    train_nn_aco(instance_name="ft10", LOAD_CHECKPOINT= True)
