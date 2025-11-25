@@ -29,7 +29,7 @@ class SteppableACO(ACO_Solver):
         """Update parameters dynamically."""
         self.alpha = float(np.clip(alpha, 0.1, 5.0))
         self.beta = float(np.clip(beta, 0.1, 5.0))
-        self.rho = float(np.clip(rho, 0.01, 0.99))
+        self.rho = float(np.clip(rho, 0.01, 0.6))
 
     def _calculate_chaos_score(self):
         """

@@ -18,7 +18,8 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         instance=instance, 
         num_ants=200, 
         iterations=0, 
-        alpha=1.0, beta=1, rho=0.1,q= 0.05      
+        alpha=1.0, beta=1, rho=0.1,q= 0.05,
+        elitist= True, elitist_factor= .1  
     )
 
     # We must build one solution so 'global_best_schedule' exists
@@ -123,4 +124,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft10", LOAD_CHECKPOINT= True)
+    train_nn_aco(instance_name="ta01", LOAD_CHECKPOINT= False)

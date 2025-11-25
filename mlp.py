@@ -50,7 +50,7 @@ class ParameterController(nn.Module):
         decoded_action = {
             'alpha': (torch.sigmoid(action[0]).item() * 4.9) + 0.1, 
             'beta':  (torch.sigmoid(action[1]).item() * 4.9) + 0.1,
-            'rho': (torch.sigmoid(action[2]).item() * 0.98) + 0.01
+            'rho': (torch.sigmoid(action[2]).item() * 0.48) + 0.01
         }
         return decoded_action, log_prob
 
