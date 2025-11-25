@@ -8,12 +8,13 @@ torch.manual_seed(42)
 
 log = logging.getLogger(__name__)
 class ParameterController(nn.Module):
-    def __init__(self,input_dim, action_dim):
+    def __init__(self,input_dim, action_dim, not_training:bool = False):
         super(ParameterController,self).__init__()# same as super()
         self.fc1 = nn.Linear(input_dim,64)
         self.fc2 = nn.Linear(64, 64)
         self.fc3 = nn.Linear(64,64)
         self.mu_head = nn.Linear(64, action_dim)
+        self.not_training = not_training
 
         self.sigma_head= nn.Linear(64, action_dim)
         # with torch.no_grad():
@@ -38,12 +39,13 @@ class ParameterController(nn.Module):
     def get_action(self, state):
         mu,sigma = self.forward(state)
         dist = Normal(mu,sigma)
-        action = dist.sample()
-
+        if self.not_training:
+            action = mu
+        else:
+            action = dist.sample()
         #action = torch.clamp(action, 0.0, 1.0)
-
-        log.debug(f"action type is {type(action)}")
-        log_prob = dist.log_prob(action).sum(dim=-1)
+        #log.debug(f"action type is {type(action)}")
+            log_prob = dist.log_prob(action).sum(dim=-1)
         
         decoded_action = {
             'alpha': (torch.sigmoid(action[0]).item() * 4.9) + 0.1, 

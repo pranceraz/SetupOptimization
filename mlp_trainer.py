@@ -84,12 +84,19 @@ def train_nn_aco(instance_name):
             optimizer.step()
         
         # Periodic Print
+        if (step + 1) % 25 == 0:
+            checkpoint_path = f"parameter_controller_step{step+1}.pth"
+            torch.save(controller.state_dict(), checkpoint_path)
+            print(f"Checkpoint saved at step {step+1} -> {checkpoint_path}")
         if step % 1 == 0:
             print(f"Step {step} | Best: {current_best} | "
-                  f"Params: A={action_dict['alpha']:.2f} B={action_dict['beta']:.2f} R={action_dict['rho']:.2f} | "
-                  f"Reward: {reward:.2f}")
+                f"Params: A={action_dict['alpha']:.2f} B={action_dict['beta']:.2f} R={action_dict['rho']:.2f} | "
+                f"Reward: {reward:.2f}")
 
     print(f"Final Makespan: {aco.global_best_schedule.makespan()}")
+    torch.save(controller.state_dict(), "parameter_controller_final.pth")
+    print("Final model saved -> parameter_controller_final.pth")
+
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ta02")
+    train_nn_aco(instance_name="ft06")

@@ -260,18 +260,13 @@ class ACO_Solver:
 if __name__ == "__main__":
     instance_name: str = "ft06"
     #instance = benchmarking.load_benchmark_instance(instance_name)
-    instance = JobShopInstance(
-    jobs,
-    name="Example",
-    # Any extra parameters are stored inside the
-    # metadata attribute as a dictionary:
-)
+    instance = benchmarking.load_benchmark_instance(instance_name)
     aco_solver = ACO_Solver(
         instance=instance,
-        num_ants=100,
-        iterations=500,
-        alpha=0.5,
-        beta=1.0,
+        num_ants=200,
+        iterations=1200,
+        alpha=3,
+        beta=2,
         rho=0.1,
         q=1.0,
         elitist=False,
