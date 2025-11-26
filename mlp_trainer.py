@@ -9,6 +9,10 @@ import utils
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 
+
+
+WARMUP_STEPS = 3
+
 def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # 1. Setup
     instance = benchmarking.load_benchmark_instance(instance_name)
@@ -19,7 +23,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         num_ants=200, 
         iterations=0, 
         alpha=1.0, beta=1, rho=0.1,q= 0.05,
-        elitist= True, elitist_factor= .1  
+        elitist= True, elitist_factor= .5  
     )
 
     # We must build one solution so 'global_best_schedule' exists
@@ -51,7 +55,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     else:
         print("No checkpoint found. Starting fresh training.")
 
-    MAX_STEPS = 200
+    MAX_STEPS = 1000
     BATCH_ITERS = 50
 
     print(f"Initial Makespan: {aco.global_best_schedule.makespan()}")
@@ -69,30 +73,33 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         # D. Run Batch
         improvement, avg_chaos= aco.run_batch(num_iterations=BATCH_ITERS)
         current_best = aco.global_best_schedule.makespan()
-        
-        # E. Calculate Reward
-        if improvement > 0:
-            # SUCCESS
-            percent_imp = (improvement / (current_best + improvement)) * 100.0
-            reward = 1.0 + percent_imp
-            log.info(f"IMPROVED: {percent_imp:.2f}% | New Best: {current_best} | Reward: {reward:.2f}")
+        if step < WARMUP_STEPS:
+            reward = 0.0   # no learning early
+            log.info(f"[WARM-UP] Step {step} | Reward suppressed.")
+        else:   
+            # E. Calculate Reward
+            if improvement > 0:
+                # SUCCESS
+                percent_imp = (improvement / (current_best + improvement)) * 100.0
+                reward = 1.0 + percent_imp
+                log.info(f"IMPROVED: {percent_imp:.2f}% | New Best: {current_best} | Reward: {reward:.2f}")
 
-        else:
-            # STAGNATION
-            if avg_chaos > 0.85:
-                 # High Chaos (Exploration) -> Small Reward to encourage searching
-                 reward = 0.1
-                 log.info(f"SEARCHING: Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
-
-            elif avg_chaos < 0.3:
-                 # Low Chaos (Convergence) -> Penalty for being stuck
-                 reward = -1.0
-                 log.warning(f"STUCK (Converged): Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
-                 
             else:
-                 # Transitioning -> Scaled Penalty
-                 reward = -1.0 + avg_chaos
-                 log.info(f"STAGNATING: Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
+                # STAGNATION
+                if avg_chaos > 0.85:
+                    # High Chaos (Exploration) -> Small Reward to encourage searching
+                    reward = 0.1
+                    log.info(f"SEARCHING: Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
+
+                elif avg_chaos < 0.3:
+                    # Low Chaos (Convergence) -> Penalty for being stuck
+                    reward = -1.0
+                    log.warning(f"STUCK (Converged): Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
+                    
+                else:
+                    # Transitioning -> Scaled Penalty
+                    reward = -1.0 + avg_chaos
+                    log.info(f"STAGNATING: Chaos {avg_chaos:.2f} | Reward: {reward:.2f}")
 
         # F. Update Network
         if log_prob is not None:
@@ -124,4 +131,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ta01", LOAD_CHECKPOINT= True)
+    train_nn_aco(instance_name="ta05", LOAD_CHECKPOINT= True)
