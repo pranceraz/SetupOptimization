@@ -50,9 +50,9 @@ class SteppableACO(ACO_Solver):
 
     def set_params(self, alpha, beta, rho):
         """Update parameters dynamically."""
-        self.alpha = float(np.clip(alpha, 0.1, 5.0))
-        self.beta = float(np.clip(beta, 0.1, 5.0))
-        self.rho = float(np.clip(rho, 0.01, 0.6))
+        self.alpha = float(np.clip(alpha, 0.1, 3.0))
+        self.beta = float(np.clip(beta, 1.0, 5.0))
+        self.rho = float(np.clip(rho, 0.01, 0.4))
 
 
     def get_pheromone_entropy(self):
@@ -90,9 +90,11 @@ class SteppableACO(ACO_Solver):
         # Feature 1: Normalized Makespan
         current_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else 5000
         if self.initial_makespan == 5000.0 and self.global_best_schedule:
+             log.debug("init makespan is 5000 set")
              self.initial_makespan = current_makespan
         # Use first makespan (or known upper bound for this problem size)
         norm_makespan = current_makespan / self.initial_makespan
+        
 
         
         # Feature 2: Chaos Score (The "State" you want to see)
@@ -111,26 +113,26 @@ class SteppableACO(ACO_Solver):
         ], dtype=torch.float32)
     
 
-    @staticmethod
-    def _build_solution_static(args):
-        """
-        Static method for parallel building. Supports deterministic per-thread seeds.
-        """
-        self_obj, seed = args
-        np.random.seed(seed)
-        random.seed(seed)
-        return self_obj._build_ant_solution()
+    # @staticmethod
+    # def _build_solution_static(args):
+    #     """
+    #     Static method for parallel building. Supports deterministic per-thread seeds.
+    #     """
+    #     self_obj, seed = args
+    #     np.random.seed(seed)
+    #     random.seed(seed)
+    #     return self_obj._build_ant_solution()
 
-    def _parallel_build_solutions(self):
-        """
-        Builds solutions in parallel using threads (lighter than multiprocessing on Windows).
-        """
-        seeds = list(range(self.num_ants))
-        with ThreadPoolExecutor() as executor:
-            results = list(executor.map(
-                SteppableACO._build_solution_static,
-                [(self, s) for s in seeds]
-            ))
+    # def _parallel_build_solutions(self):
+    #     """
+    #     Builds solutions in parallel using threads (lighter than multiprocessing on Windows).
+    #     """
+    #     seeds = list(range(self.num_ants))
+    #     with ThreadPoolExecutor() as executor:
+    #         results = list(executor.map(
+    #             SteppableACO._build_solution_static,
+    #             [(self, s) for s in seeds]
+    #         ))
 
         ant_schedules, ant_sequences = zip(*results)
         return list(ant_schedules), list(ant_sequences)

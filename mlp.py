@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim 
 from torch.distributions import Normal
 import logging
+import numpy as np
 logging.basicConfig(level=logging.INFO)
 torch.manual_seed(42)
 
@@ -48,9 +49,10 @@ class ParameterController(nn.Module):
             log_prob = dist.log_prob(action).sum(dim=-1)
         
         decoded_action = {
-            'alpha': (torch.sigmoid(action[0]).item() * 4.9) + 0.1, 
-            'beta':  (torch.sigmoid(action[1]).item() * 4.9) + 0.1,
-            'rho': (torch.sigmoid(action[2]).item() * 0.48) + 0.01
+            'alpha': float(np.clip((torch.sigmoid(action[0]).item() * 4.9) + 0.1, 0.1, 3.0)),
+            'beta':  float(np.clip((torch.sigmoid(action[1]).item() * 4.9) + 0.1, 1.0, 5.0)),
+            'rho':   float(np.clip((torch.sigmoid(action[2]).item() * 0.98) + 0.01, 0.01, 0.4))
         }
+
         return decoded_action, log_prob
 

@@ -112,42 +112,56 @@ class ACO_Solver:
         #return 1.0 / (op.duration + 1e-6)
         return self.heuristic_cache[op.operation_id]
 
-    def _ant_brain(self, ready_ops: list[int],last_op:int) -> int:
+    # def _ant_brain(self, ready_ops: list[int],last_op:int) -> int:
+    #     """
+    #     Selects one operation id from ready_ops using pheromone and heuristic.
+    #     """
+    #     # Compute scores
+    #     scores = []
+    #     log_scores=[]
+    #     for op_id in ready_ops:
+    #         tau = self.pheromone[last_op,op_id]
+    #         eta = self._visibility(self.op_list[op_id])
+
+    #         log_tau = np.log(tau + 1e-9)
+    #         log_eta = np.log(eta + 1e-9)
+
+    #         log_score = (self.alpha * log_tau) + (self.beta * log_eta)
+    #         log_scores.append(log_score)
+
+    #     log_scores = np.array(log_scores)
+    #     log_scores_shifted = log_scores - np.max(log_scores)
+    #     unnormalized_probs = np.exp(log_scores_shifted)
+    #     probs = unnormalized_probs / unnormalized_probs.sum()
+    #     return int(np.random.choice(ready_ops, p=probs))
+
+    def _ant_brain(self, ready_ops: list[int], last_op: int) -> int:
         """
-        Selects one operation id from ready_ops using pheromone and heuristic.
+        Vectorized selection of an operation from ready_ops using pheromone and heuristic.
         """
-        # Compute scores
-        scores = []
-        log_scores=[]
-        for op_id in ready_ops:
-            tau = self.pheromone[last_op,op_id]
-            eta = self._visibility(self.op_list[op_id])
+        ready_ops_arr = np.array(ready_ops, dtype=np.int32)
 
-            log_tau = np.log(tau + 1e-9)
-            log_eta = np.log(eta + 1e-9)
+        # Pheromones for last_op -> ready_ops
+        taus = self.pheromone[last_op, ready_ops_arr]
 
-            log_score = (self.alpha * log_tau) + (self.beta * log_eta)
-            log_scores.append(log_score)
+        # Heuristic values (cached)
+        etas = self.heuristic_cache[ready_ops_arr]
 
-        log_scores = np.array(log_scores)
-        log_scores_shifted = log_scores - np.max(log_scores)
-        unnormalized_probs = np.exp(log_scores_shifted)
-        probs = unnormalized_probs / unnormalized_probs.sum()
-        return int(np.random.choice(ready_ops, p=probs))
-            # Compute desirability
-            # score = (tau ** self.alpha) * (eta ** self.beta)
-            # scores.append(score)
+        # Log-space scoring
+        log_scores = self.alpha * np.log(taus + 1e-9) + self.beta * np.log(etas + 1e-9)
 
-        # total = float(np.sum(scores))
-        # if total <= 0.0 or not np.isfinite(total):
-        #     # Fallback: uniform random among ready ops
-        #     log.warning("choosing random choise->total probabilities are wack! ") 
-        # #     return random.choice(ready_ops)
+        # Numerical stability: shift by max
+        log_scores -= np.max(log_scores)
 
-        # probs = np.array(scores, dtype=np.float64) / total
-        # # Numerical safety
-        # probs = probs / probs.sum()
-        # return int(np.random.choice(ready_ops, p=probs))
+        # Convert to probabilities
+        probs = np.exp(log_scores)
+        probs /= probs.sum()
+
+        # Choose operation
+        choice = np.random.choice(ready_ops_arr, p=probs)
+        return int(choice)
+
+
 
     def _build_ant_solution(self) -> tuple[Schedule, list[int]]:
         """
@@ -256,7 +270,7 @@ class ACO_Solver:
                 curr = op_id
 
         # 5) Clip pheromones
-        np.clip(self.pheromone, 0.01, 5.0, out=self.pheromone)
+        np.clip(self.pheromone, 0.01, 10.0, out=self.pheromone)
 
     
     @staticmethod

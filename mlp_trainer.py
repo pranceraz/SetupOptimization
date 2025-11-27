@@ -24,9 +24,9 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
-        num_ants=200, 
+        num_ants=400, 
         iterations=0, 
-        alpha=1.0, beta=1, rho=0.1,q= 0.05,
+        alpha=1.0, beta=2, rho=0.1,q= 0.05,
         elitist= True, elitist_factor= .5  
     )
 
@@ -44,7 +44,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
       
-    checkpoint_file = "fresh_point.pth"
+    checkpoint_file = "scratch23.pth"
     start_step = 0
     if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
         print(f"Checkpoint found! Loading {checkpoint_file} ...")
@@ -62,9 +62,24 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     MAX_STEPS = 1000
     BATCH_ITERS = 50
 
+    # Tunable parameters
+    IMPROVEMENT_SCALE = 2.0     # how strongly improvement is rewarded
+    STAGNATION_PENALTY = -0.02   # mild, not catastrophic
+    CHAOS_LOW_PENALTY = -0.2
+    CHAOS_HIGH_PENALTY = -0.2
+
+    CHAOS_LOW = 0.02
+    CHAOS_GOOD_LOW = 0.1
+    CHAOS_GOOD_HIGH = 0.40
+    CHAOS_HIGH = 0.70
+    no_improvement_for = 0
+    warmup = 0
+
     print(f"Initial Makespan: {aco.global_best_schedule.makespan()}")
     
     for step in range(start_step, MAX_STEPS):
+        
+
         # A. Get State
         state = aco.get_state()
         
@@ -79,41 +94,84 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         current_best = aco.global_best_schedule.makespan()
 
 
-        # --- Reward Calculation ---
-        old_best = current_best + improvement  # previous batch best
+
+
+    # --- Reward Calculation ---
+        old_best = current_best + improvement
         new_best = current_best
 
-        if step < WARMUP_STEPS:
+        if warmup < WARMUP_STEPS:
             reward = 0.0
             log.info(f"[WARM-UP] Step {step} | Reward suppressed.")
+            warmup +=1
+
         else:
-            # Success / progress
+
+            # ===========================
+            # 1. TRUE IMPROVEMENT REWARD
+            # ===========================
             if improvement > 1e-6:
-                # Log-improvement reward (small positive for any improvement)
+                # Log improvement ensures small but smooth gains
                 imp_reward = np.log((old_best + 1e-6) / (new_best + 1e-6))
-                
-                # Scale slightly to encourage NN to find parameters that improve ACO
-                reward = 0.1 + imp_reward
-                
-                log.info(f"IMPROVED: Δ={improvement:.2f} | Chaos={avg_chaos:.2f} | Reward={reward:.3f}")
+                no_improvement_for = 0
+
+                # Stronger positive scaling
+                reward = 0.1 + IMPROVEMENT_SCALE * imp_reward
+
+                log.info(
+                    f"IMPROVED: Δ={improvement:.2f} | Chaos={avg_chaos:.2f} | "
+                    f"Reward={reward:.3f}"
+                )
 
             else:
-                # Stagnation
-                if avg_chaos > 0.9:
-                    # Too chaotic -> small negative
-                    reward = -0.5
-                    log.warning(f"TOO CHAOTIC: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+                # No improvement (stagnation)
+                reward = 0.0  # start neutral
+                no_improvement_for += 1
+                # =======================
+                # 2. CHAOS REWARD SHAPING
+                # =======================
 
-                elif avg_chaos < 0.05:
-                    # Almost converged but stuck -> small negative
-                    reward = -0.5
-                    log.warning(f"CONVERGED & STUCK: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+                if avg_chaos < CHAOS_LOW:
+                    # Strong convergence (could be stuck)
+                    reward += CHAOS_LOW_PENALTY
+                    log.warning(
+                        f"LOW CHAOS (possible stagnation): Chaos={avg_chaos:.2f} | "
+                        f"Reward={reward:.2f}"
+                    )
 
-                else:
-                    # Moderate chaos, no big improvement -> small neutral reward
-                    reward = 0.0
-                    log.info(f"STAGNATING: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+                elif CHAOS_LOW <= avg_chaos < CHAOS_GOOD_LOW:
+                    # Very stable, probably converged but not bad
+                    reward += +0.05
+                    log.info(
+                        f"GOOD-LOW CHAOS (stable): Chaos={avg_chaos:.2f} | "
+                        f"Reward={reward:.2f}"
+                    )
 
+                elif CHAOS_GOOD_LOW <= avg_chaos <= CHAOS_GOOD_HIGH:
+                    # Ideal exploration window
+                    reward += +0.02
+                    log.info(
+                        f"HEALTHY CHAOS: Chaos={avg_chaos:.2f} | "
+                        f"Reward={reward:.2f}"
+                    )
+
+                elif avg_chaos > CHAOS_HIGH:
+                    # Too chaotic — penalize
+                    reward += CHAOS_HIGH_PENALTY
+                    log.warning(
+                        f"HIGH CHAOS: Chaos={avg_chaos:.2f} | Reward={reward:.2f}"
+                    )
+
+                # ===========================
+                # 3. MILD STAGNATION PENALTY
+                # ===========================
+                # Only if no improvement for multiple steps
+                if no_improvement_for >= 20:
+                    reward += STAGNATION_PENALTY
+                    log.warning(
+                        f"STAGNATION: No improvement for {no_improvement_for} steps | "
+                        f"Reward={reward:.2f}"
+                    )
 
 
 
@@ -129,7 +187,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         
         
         # Periodic Print
-        if (step + 1) % 25 == 0:
+        if (step + 1) % 5 == 0:
             checkpoint = {
                 "model_state_dict": controller.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
@@ -150,4 +208,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= False)
+    train_nn_aco(instance_name="ft10", LOAD_CHECKPOINT= True)
