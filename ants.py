@@ -15,7 +15,7 @@ from job_shop_lib import (
 
 
 
-
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 log = logging.getLogger(__name__)
 np.random.seed(42)
@@ -151,7 +151,7 @@ class ACO_Solver:
 
     def _build_ant_solution(self) -> tuple[Schedule, list[int]]:
         """
-        Builds a feasible semi-active schedule by repeatedly picking from ready ops.
+        Builds a feasible schedule by repeatedly picking from ready ops.
         Returns (Schedule, sequence_of_op_ids).
         """
         scheduled_ops: list[ScheduledOperation] = []
@@ -286,18 +286,18 @@ class ACO_Solver:
 
 
 if __name__ == "__main__":
-    instance_name: str = "ft06"
+    instance_name: str = "ta02"
     #instance = benchmarking.load_benchmark_instance(instance_name)
     instance = benchmarking.load_benchmark_instance(instance_name)
     aco_solver = ACO_Solver(
         instance=instance,
         num_ants=200,
         iterations=1200,
-        alpha=3,
+        alpha=1,
         beta=2,
-        rho=0.1,
+        rho=0.5,
         q=1.0,
-        elitist=False,
+        elitist=True,
         elitist_factor=1
     )
     print("Starting ACO Solver...")
