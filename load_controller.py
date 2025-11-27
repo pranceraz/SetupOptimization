@@ -2,6 +2,9 @@
 
 import torch
 import argparse
+import csv
+from datetime import datetime
+from pathlib import Path
 from mlp import ParameterController
 from ants_env import SteppableACO
 import job_shop_lib.benchmarking as benchmarking
@@ -31,9 +34,10 @@ def load_model(model_path, device):
     controller.eval()
     return controller
 
-def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=50, num_batches=10, device=None):
+def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=50, num_batches=10, device=None, log_dir="logs"):
     """
     Run inference with dynamic parameter updates every batch.
+    Logs results to CSV file.
     """
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -61,8 +65,22 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
     initial_makespan = aco.global_best_schedule.makespan()
     print(f"Initial Makespan: {initial_makespan}\n")
     
-    # Run multiple batches with dynamic parameter updates
+    # Setup CSV logging
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    model_name = Path(model_path).stem
+    csv_filename = f"{log_dir}/{instance_name}_{model_name}_{timestamp}.csv"
+    
+    # Open CSV file and write header
+    csv_file = open(csv_filename, 'w', newline='')
+    csv_writer = csv.writer(csv_file)
+    csv_writer.writerow([
+        'batch', 'total_iterations', 'makespan', 'improvement', 'avg_chaos',
+        'alpha', 'beta', 'rho', 'reduction_from_initial', 'percent_improvement'
+    ])
+    
     print(f"Running {num_batches} batches of {iterations_per_batch} iterations each")
+    print(f"Logging to: {csv_filename}")
     print("=" * 70)
     
     for batch_idx in range(num_batches):
@@ -87,6 +105,24 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
         # Run batch with these parameters
         improvement, avg_chaos = aco.run_batch(num_iterations=iterations_per_batch)
         current_makespan = aco.global_best_schedule.makespan()
+        total_iters = (batch_idx + 1) * iterations_per_batch
+        reduction = initial_makespan - current_makespan
+        percent_imp = 100 * reduction / initial_makespan
+        
+        # Write to CSV
+        csv_writer.writerow([
+            batch_idx + 1,
+            total_iters,
+            current_makespan,
+            improvement,
+            f"{avg_chaos:.4f}",
+            f"{action_dict['alpha']:.4f}",
+            f"{action_dict['beta']:.4f}",
+            f"{action_dict['rho']:.4f}",
+            reduction,
+            f"{percent_imp:.2f}"
+        ])
+        csv_file.flush()  # Ensure data is written immediately
         
         print(f"Batch {batch_idx+1:2d} | "
               f"Makespan: {current_makespan:4d} | "
@@ -94,6 +130,8 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
               f"β: {action_dict['beta']:.3f} | "
               f"ρ: {action_dict['rho']:.3f} | "
               f"Chaos: {avg_chaos:.2f}")
+    
+    csv_file.close()
     
     final_makespan = aco.global_best_schedule.makespan()
     total_reduction = initial_makespan - final_makespan
@@ -105,12 +143,14 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
     print(f"  Final Makespan:   {final_makespan}")
     print(f"  Reduction:        {total_reduction} ({percent_improvement:.2f}%)")
     print(f"  Total Iterations: {num_batches * iterations_per_batch}")
+    print(f"\nResults saved to: {csv_filename}")
     
     return {
         'initial_makespan': initial_makespan,
         'final_makespan': final_makespan,
         'reduction': total_reduction,
-        'percent_improvement': percent_improvement
+        'percent_improvement': percent_improvement,
+        'csv_file': csv_filename
     }
 
 def main():
@@ -127,6 +167,8 @@ def main():
                         help='Number of batches (parameter updates)')
     parser.add_argument('--device', type=str, default=None,
                         help='Device to run on (cuda/cpu)')
+    parser.add_argument('--log_dir', type=str, default='logs',
+                        help='Directory to save CSV logs')
     
     args = parser.parse_args()
     
@@ -138,7 +180,8 @@ def main():
         num_ants=args.num_ants,
         iterations_per_batch=args.iterations_per_batch,
         num_batches=args.num_batches,
-        device=device
+        device=device,
+        log_dir=args.log_dir
     )
     
     return results

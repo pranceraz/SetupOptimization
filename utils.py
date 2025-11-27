@@ -1,7 +1,7 @@
 
 import job_shop_lib.benchmarking as benchmarking
 
-def inspect_instance(instance_name:str = "ft06"):
+def inspect_instance(instance_name:str = "ft06",verbose = False):
     """
     Loads the benchmark instance and
     prints its structure to the console.
@@ -20,15 +20,15 @@ def inspect_instance(instance_name:str = "ft06"):
     
     # The optimal known makespan for 'ft06' is 55
     print(f"Known Optimal Makespan: {instance.metadata.get('optimum')}")
-    
-    print("\n--- Job-Operation Structure ---")
-    
-    # instance.jobs is a list of lists.
-    # Each inner list is a job, containing its operations in order.
-    for job_id, job in enumerate(instance.jobs):
-        print(f"--- Job {job_id} ---")
+    if verbose:
+        print("\n--- Job-Operation Structure ---")
         
-        for op in job:
-            # Each 'op' is an Operation object
-            print(f"  Operation {op.operation_id:02d} (Job {op.job_id}, Pos {op.position_in_job}): "
-                  f"Runs on Machine {op.machine_id} for {op.duration} units")
+        # instance.jobs is a list of lists.
+        # Each inner list is a job, containing its operations in order.
+        for job_id, job in enumerate(instance.jobs):
+            print(f"--- Job {job_id} ---")
+            
+            for op in job:
+                # Each 'op' is an Operation object
+                print(f"  Operation {op.operation_id:02d} (Job {op.job_id}, Pos {op.position_in_job}): "
+                    f"Runs on Machine {op.machine_id} for {op.duration} units")
