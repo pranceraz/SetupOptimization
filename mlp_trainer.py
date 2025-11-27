@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 
-WARMUP_STEPS = 5
+WARMUP_STEPS = 3
 
 def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # 1. Setup
@@ -78,33 +78,45 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
         improvement, avg_chaos= aco.run_batch(num_iterations=BATCH_ITERS)
         current_best = aco.global_best_schedule.makespan()
 
+
+        # --- Reward Calculation ---
+        old_best = current_best + improvement  # previous batch best
+        new_best = current_best
+
         if step < WARMUP_STEPS:
             reward = 0.0
             log.info(f"[WARM-UP] Step {step} | Reward suppressed.")
-
         else:
-            old_best = current_best + improvement
-            new_best = current_best
-
-            if improvement > 1e-12:
-                # SUCCESS: reward = log improvement
-                reward = np.log((old_best + 1e-12) / (new_best + 1e-12))
-                log.info(f"IMPROVED: {improvement:.2f} | New Best: {current_best} | Reward: {reward:.3f}")
-
-                # Penalize if chaos is way too high
-                if avg_chaos > 0.9:  # adjust threshold as needed
-                    chaos_penalty = -0.5 * (avg_chaos - 0.9)
-                    reward += chaos_penalty
-                    log.info(f"High chaos penalty applied: {chaos_penalty:.3f} | Adjusted Reward: {reward:.3f}")
+            # Success / progress
+            if improvement > 1e-6:
+                # Log-improvement reward (small positive for any improvement)
+                imp_reward = np.log((old_best + 1e-6) / (new_best + 1e-6))
+                
+                # Scale slightly to encourage NN to find parameters that improve ACO
+                reward = 0.1 + imp_reward
+                
+                log.info(f"IMPROVED: Δ={improvement:.2f} | Chaos={avg_chaos:.2f} | Reward={reward:.3f}")
 
             else:
-                # STAGNATION: reward mostly based on chaos
+                # Stagnation
                 if avg_chaos > 0.9:
-                    reward = -0.5 * (avg_chaos - 0.9)  # only penalize extreme chaos
-                    log.warning(f"STAGNATION + HIGH CHAOS {avg_chaos:.2f} | Reward: {reward:.3f}")
+                    # Too chaotic -> small negative
+                    reward = -0.5
+                    log.warning(f"TOO CHAOTIC: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+
+                elif avg_chaos < 0.05:
+                    # Almost converged but stuck -> small negative
+                    reward = -0.5
+                    log.warning(f"CONVERGED & STUCK: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+
                 else:
+                    # Moderate chaos, no big improvement -> small neutral reward
                     reward = 0.0
-                    log.info(f"STAGNATION: Chaos {avg_chaos:.2f} | Reward: {reward:.3f}")
+                    log.info(f"STAGNATING: Chaos={avg_chaos:.2f} | Reward={reward:.2f}")
+
+
+
+
 
         # F. Update Network
         if log_prob is not None:
