@@ -21,12 +21,14 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # 1. Setup
     instance = benchmarking.load_benchmark_instance(instance_name)
     utils.inspect_instance(instance_name)
+
+    c_opt = instance.metadata.get('optimum')
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
-        num_ants=400, 
+        num_ants=200, 
         iterations=0, 
-        alpha=1.0, beta=2, rho=0.1,q= 0.05,
+        alpha=1.0, beta=2, rho=0.1,q= 200,
         elitist= True, elitist_factor= .5  
     )
 
@@ -40,11 +42,11 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
    
 
-    controller = ParameterController(input_dim=6, action_dim=3)
+    controller = ParameterController(input_dim=4, action_dim=3)
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
       
-    checkpoint_file = "scratch23.pth"
+    checkpoint_file = "scratch24.pth"
     start_step = 0
     if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
         print(f"Checkpoint found! Loading {checkpoint_file} ...")
@@ -208,4 +210,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft10", LOAD_CHECKPOINT= True)
+    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= False)

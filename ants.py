@@ -143,12 +143,16 @@ class ACO_Solver:
 
         # Pheromones for last_op -> ready_ops
         taus = self.pheromone[last_op, ready_ops_arr]
-
+        tau_min, tau_max = np.min(taus), np.max(taus)
+        taus_scaled = 0.5 + 0.5 * (taus - tau_min) / max(1e-12, (tau_max - tau_min))
         # Heuristic values (cached)
         etas = self.heuristic_cache[ready_ops_arr]
+        eta_min, eta_max = np.min(etas), np.max(etas)
+        etas_scaled = 0.5 + 0.5 * (etas - eta_min) / max(1e-12, (eta_max - eta_min))        #log.debug(taus)   
 
+       # log.debug(taus)
         # Log-space scoring
-        log_scores = self.alpha * np.log(taus + 1e-9) + self.beta * np.log(etas + 1e-9)
+        log_scores = self.alpha * np.log(taus_scaled + 1e-9) + self.beta * np.log(etas_scaled + 1e-9)
 
         # Numerical stability: shift by max
         log_scores -= np.max(log_scores)
@@ -227,52 +231,97 @@ class ACO_Solver:
 
         return sched, seq
     
+    # def _update_pheromones(self, ant_schedules: list[Schedule], ant_sequences: list[list[int]]):
+    #     """
+    #     Standard Ant System update:
+    #     - Evaporation: tau = (1 - rho) * tau
+    #     - Deposition from all ants
+    #     - Extra reinforcement for iteration-best and global-best
+    #     """
+    #     # 1) Evaporation
+    #     self.pheromone *= (1.0 - self.rho)
+
+    #     # 2) Deposition from all ants
+    #     batch_best_idx = int(np.argmin([s.makespan() for s in ant_schedules]))
+    #     batch_best_schedule = ant_schedules[batch_best_idx]
+    #     batch_best_seq = ant_sequences[batch_best_idx]
+    #     batch_best_makespan = batch_best_schedule.makespan()
+
+    #     dynamic_Q = (self.q * batch_best_makespan) / self.num_ants
+
+    #     for sched, seq in zip(ant_schedules, ant_sequences):
+    #         current_makespan = max(1e-6, float(sched.makespan()))
+    #         reward = dynamic_Q / current_makespan
+    #         curr = self.num_ops  # dummy start
+
+    #         for next_op in seq:
+    #             self.pheromone[curr, next_op] += reward
+    #             #log.debug(f"reinforcing decision by {reward}")
+    #             curr = next_op
+
+    #     # 3) Reinforce iteration-best
+    #     iter_reward = self.q / max(1e-6, batch_best_makespan)
+    #     log.debug(f"reinforcing iteration by {iter_reward}")
+    #     curr = self.num_ops
+    #     for op_id in batch_best_seq:
+    #         self.pheromone[curr, op_id] += iter_reward
+    #         curr = op_id
+
+    #     # 4) Reinforce global-best (elitist)
+    #     if self.elitist and self.global_best_seq is not None:
+    #         global_reward = self.q / max(1e-6, self.global_best_schedule.makespan())
+    #         log.debug(f"reinforcing global by {global_reward}")
+    #         curr = self.num_ops
+    #         for op_id in self.global_best_seq:
+    #             self.pheromone[curr, op_id] += global_reward
+    #             curr = op_id
+
+    #     # 5) Clip pheromones
+    #     np.clip(self.pheromone, 0.01, 10.0, out=self.pheromone)
     def _update_pheromones(self, ant_schedules: list[Schedule], ant_sequences: list[list[int]]):
         """
-        Standard Ant System update:
-        - Evaporation: tau = (1 - rho) * tau
-        - Deposition from all ants
-        - Extra reinforcement for iteration-best and global-best
+        Pheromone update with old-style loops, but using the new scaled deposition.
         """
         # 1) Evaporation
         self.pheromone *= (1.0 - self.rho)
 
-        # 2) Deposition from all ants
-        batch_best_idx = int(np.argmin([s.makespan() for s in ant_schedules]))
-        batch_best_schedule = ant_schedules[batch_best_idx]
+        # 2) Find iteration-best
+        makespans = [s.makespan() for s in ant_schedules]
+        batch_best_idx = int(np.argmin(makespans))
         batch_best_seq = ant_sequences[batch_best_idx]
-        batch_best_makespan = batch_best_schedule.makespan()
+        batch_best_makespan = makespans[batch_best_idx]
 
-        dynamic_Q = (self.q * batch_best_makespan) / self.num_ants
+        dynamic_Q = self.q  # scaled deposition base
 
-        for sched, seq in zip(ant_schedules, ant_sequences):
-            current_makespan = max(1e-6, float(sched.makespan()))
-            reward = dynamic_Q / current_makespan
+        # 3) Per-ant deposition
+        for seq, mk in zip(ant_sequences, makespans):
+            reward = dynamic_Q / max(1e-6, mk)
             curr = self.num_ops  # dummy start
-
-            for next_op in seq:
-                self.pheromone[curr, next_op] += reward
-                curr = next_op
-
-        # 3) Reinforce iteration-best
-        iter_reward = self.q / max(1e-6, batch_best_makespan)
+            for op_id in seq:
+                self.pheromone[curr, op_id] += reward
+                curr = op_id
+                # log.debug(f"desision {reward}")
+        # 4) Iteration-best reinforcement
+        iter_reward = dynamic_Q / max(1e-6, batch_best_makespan)
         curr = self.num_ops
         for op_id in batch_best_seq:
             self.pheromone[curr, op_id] += iter_reward
             curr = op_id
+            #log.debug(f"desision {iter_reward}")
 
-        # 4) Reinforce global-best (elitist)
+
+        # 5) Global-best reinforcement
         if self.elitist and self.global_best_seq is not None:
-            global_reward = self.q / max(1e-6, self.global_best_schedule.makespan())
+            global_reward = dynamic_Q / max(1e-6, self.global_best_schedule.makespan())
             curr = self.num_ops
             for op_id in self.global_best_seq:
                 self.pheromone[curr, op_id] += global_reward
                 curr = op_id
 
-        # 5) Clip pheromones
-        np.clip(self.pheromone, 0.01, 10.0, out=self.pheromone)
+        # 6) Clip pheromones
+        np.clip(self.pheromone, 0.01, 5.0, out=self.pheromone)
 
-    
+
     @staticmethod
     def _build_solution_static(args):
         self_obj, seed = args

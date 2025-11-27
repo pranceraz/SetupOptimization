@@ -14,7 +14,7 @@ def load_model(model_path, device):
     """
     Load trained model from either state_dict or checkpoint format.
     """
-    controller = ParameterController(input_dim=6, action_dim=3).to(device)
+    controller = ParameterController(input_dim=4, action_dim=3).to(device)
     
     try:
         checkpoint = torch.load(model_path, map_location=device, weights_only=False)
@@ -155,36 +155,44 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
 
 def main():
     parser = argparse.ArgumentParser(description='Load and evaluate trained ACO parameter controller')
+
     parser.add_argument('--model_path', type=str, default='parameter_controller_final.pth',
                         help='Path to trained model weights')
-    parser.add_argument('--instance', type=str, default='ft10',
+
+    # FIX: accept both --instance and --instance_name
+    parser.add_argument('--instance_name', '--instance', type=str, default='ft10',
                         help='Job-shop benchmark instance name')
+
     parser.add_argument('--num_ants', type=int, default=200,
                         help='Number of ants in ACO')
+
     parser.add_argument('--iterations_per_batch', type=int, default=50,
                         help='Number of ACO iterations per batch')
+
     parser.add_argument('--num_batches', type=int, default=10,
                         help='Number of batches (parameter updates)')
+
     parser.add_argument('--device', type=str, default=None,
                         help='Device to run on (cuda/cpu)')
+
     parser.add_argument('--log_dir', type=str, default='logs',
                         help='Directory to save CSV logs')
-    
+
     args = parser.parse_args()
-    
     device = torch.device(args.device) if args.device else None
-    
+
     results = run_inference(
         model_path=args.model_path,
-        instance_name=args.instance,
+        instance_name=args.instance_name,     # FIXED
         num_ants=args.num_ants,
         iterations_per_batch=args.iterations_per_batch,
         num_batches=args.num_batches,
         device=device,
         log_dir=args.log_dir
     )
-    
+
     return results
+
 
 if __name__ == "__main__":
     main()

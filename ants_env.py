@@ -85,32 +85,54 @@ class SteppableACO(ACO_Solver):
     def get_state(self):
         """
         Extract features for the Neural Network.
-        Returns: [Norm_Makespan, Chaos_Score, Alpha, Beta, Rho, Stagnation]
+        Features:
+        1. Normalized Makespan
+        2. Chaos Score
+        3. Pheromone Entropy
+        4. Recent Improvement (Delta)
         """
-        # Feature 1: Normalized Makespan
-        current_makespan = self.global_best_schedule.makespan() if self.global_best_schedule else 5000
-        if self.initial_makespan == 5000.0 and self.global_best_schedule:
-             log.debug("init makespan is 5000 set")
-             self.initial_makespan = current_makespan
-        # Use first makespan (or known upper bound for this problem size)
-        norm_makespan = current_makespan / self.initial_makespan
-        
 
-        
-        # Feature 2: Chaos Score (The "State" you want to see)
+        # --- 1. Normalized Makespan ---
+        current_makespan = (
+            self.global_best_schedule.makespan()
+            if self.global_best_schedule is not None
+            else 5000
+        )
+
+        # Set initial_makespan once
+        if self.initial_makespan == 5000.0 and self.global_best_schedule is not None:
+            self.initial_makespan = current_makespan
+
+        norm_makespan = current_makespan / (self.initial_makespan + 1e-9)
+
+
+        # --- 2. Chaos Score ---
         chaos_score = self._calculate_chaos_score()
-        
-        # Feature 3: Stagnation Counter (Normalized)
-        norm_stagnation = min(self.stagnation_counter / 50.0, 1.0)
 
+
+        # --- 3. Pheromone Entropy ---
+        entropy = self.get_pheromone_entropy()
+
+
+        # --- 4. Recent Improvement (Delta) ---
+        if not hasattr(self, "prev_best"):
+            self.prev_best = current_makespan
+
+        delta = (self.prev_best - current_makespan) / (self.prev_best + 1e-9)
+        delta = np.clip(delta, -1, 1)
+
+        # Update prev_best for next call
+        self.prev_best = current_makespan
+
+
+        # Final state vector
         return torch.tensor([
-            norm_makespan,
-            chaos_score,
-            self.alpha / 5.0,
-            self.beta / 5.0,
-            self.rho,
-            norm_stagnation 
+            norm_makespan,   # Feature 1
+            chaos_score,     # Feature 2
+            entropy,         # Feature 3
+            delta            # Feature 4
         ], dtype=torch.float32)
+
     
 
     # @staticmethod
