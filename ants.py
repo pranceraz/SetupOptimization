@@ -343,7 +343,7 @@ class ACO_Solver:
 
 
 if __name__ == "__main__":
-    instance_name: str = "la01"
+    instance_name: str = "ft06"
     #instance = benchmarking.load_benchmark_instance(instance_name)
     instance = benchmarking.load_benchmark_instance(instance_name)
     aco_solver = ACO_Solver(

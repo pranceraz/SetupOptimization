@@ -26,10 +26,10 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
-        num_ants=50, 
+        num_ants=75, 
         iterations=0, 
         alpha=1.0, beta=2, rho=0.1,q= .05,
-        elitist= True, elitist_factor= 5
+        elitist= True, elitist_factor= 10
     )
 
     # We must build one solution so 'global_best_schedule' exists
@@ -46,7 +46,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
       
-    checkpoint_file = "scratchft.pth"
+    checkpoint_file = "scratch25.pth"
     start_step = 0
     if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
         print(f"Checkpoint found! Loading {checkpoint_file} ...")
@@ -66,7 +66,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
     # Tunable parameters
     IMPROVEMENT_SCALE = 2.0     # how strongly improvement is rewarded
-    STAGNATION_PENALTY = -0.02   # mild, not catastrophic
+    STAGNATION_PENALTY = -0.1   # mild, not catastrophic
     CHAOS_LOW_PENALTY = -0.4
     CHAOS_HIGH_PENALTY = -0.2
 
@@ -210,4 +210,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= True)
+    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= False)

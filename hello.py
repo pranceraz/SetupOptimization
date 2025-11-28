@@ -2,7 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load data from CSV file
-df = pd.read_csv('longrun.csv')  # Replace 'your_data.csv' with your actual filename
+df = pd.read_csv('notsoawsm.csv')  # Replace 'your_data.csv' with your actual filename
 
 # Create the plot
 plt.figure(figsize=(12, 6))

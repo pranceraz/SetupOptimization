@@ -55,7 +55,9 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
         iterations=0,
         alpha=1.0,
         beta=1.0,
-        rho=0.1
+        rho=0.1,
+        q=.1,
+        elitist =True
     )
     
     # Build initial solution
@@ -163,13 +165,13 @@ def main():
     parser.add_argument('--instance_name', '--instance', type=str, default='ft10',
                         help='Job-shop benchmark instance name')
 
-    parser.add_argument('--num_ants', type=int, default=200,
+    parser.add_argument('--num_ants', type=int, default=50,
                         help='Number of ants in ACO')
 
-    parser.add_argument('--iterations_per_batch', type=int, default=50,
+    parser.add_argument('--iterations_per_batch', type=int, default=10,
                         help='Number of ACO iterations per batch')
 
-    parser.add_argument('--num_batches', type=int, default=10,
+    parser.add_argument('--num_batches', type=int, default=5000,
                         help='Number of batches (parameter updates)')
 
     parser.add_argument('--device', type=str, default=None,
