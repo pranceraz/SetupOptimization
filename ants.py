@@ -43,6 +43,7 @@ class ACO_Solver:
                  alpha: float, beta: float, rho: float, q: float = 1.0,
                  elitist: bool = False, elitist_factor: int = 1):
         self.instance = instance
+        self.c_opt = int(self.instance.metadata.get('optimum'))
         self.num_ants = num_ants
         self.iterations = iterations
         self.alpha = alpha
@@ -81,8 +82,8 @@ class ACO_Solver:
         print(f"Initial Makespan: {self.global_best_schedule.makespan()}")
 
         for i in range(self.iterations):
-
-            ant_schedules, ant_sequences = self._parallel_build_solutions()
+            ant_schedules: list[Schedule] = []
+            ant_sequences: list[list[int]] = []
             # Construct solutions
             for _ in range(self.num_ants):
                 sched, seq = self._build_ant_solution()
@@ -136,34 +137,52 @@ class ACO_Solver:
     #     return int(np.random.choice(ready_ops, p=probs))
 
     def _ant_brain(self, ready_ops: list[int], last_op: int) -> int:
-        """
-        Vectorized selection of an operation from ready_ops using pheromone and heuristic.
-        """
-        ready_ops_arr = np.array(ready_ops, dtype=np.int32)
+            """
+            Standard ACO selection with log-space stability, incorporating 
+            Min-Max normalization only for the heuristic (eta).
+            """
+            ready_ops_arr = np.array(ready_ops, dtype=np.int32)
 
-        # Pheromones for last_op -> ready_ops
-        taus = self.pheromone[last_op, ready_ops_arr]
-        tau_min, tau_max = np.min(taus), np.max(taus)
-        taus_scaled = 0.5 + 0.5 * (taus - tau_min) / max(1e-12, (tau_max - tau_min))
-        # Heuristic values (cached)
-        etas = self.heuristic_cache[ready_ops_arr]
-        eta_min, eta_max = np.min(etas), np.max(etas)
-        etas_scaled = 0.5 + 0.5 * (etas - eta_min) / max(1e-12, (eta_max - eta_min))        #log.debug(taus)   
+            # 1. Get raw Pheromones (taus)
+            taus = self.pheromone[last_op, ready_ops_arr]
+            
+            # 2. Get raw Heuristics (etas)
+            etas_raw = self.heuristic_cache[ready_ops_arr]
 
-       # log.debug(taus)
-        # Log-space scoring
-        log_scores = self.alpha * np.log(taus_scaled + 1e-9) + self.beta * np.log(etas_scaled + 1e-9)
+            # This standardizes the heuristic to [0, 1] relative to the current choices.
+            # This prevents large instances from having disproportionately large eta values.
+            eta_min, eta_max = np.min(etas_raw), np.max(etas_raw)
+            
+            # Avoid division by zero if all etas are the same (eta_max - eta_min = 0)
+            if (eta_max - eta_min) < 1e-9:
+                # If all are equal, the scaled heuristic is 1 (or any constant value > 0)
+                etas_scaled = np.ones_like(etas_raw) 
+            else:
+                # Min-Max Scaling: [0, 1] range
+                etas_scaled = (etas_raw - eta_min) / (eta_max - eta_min)
 
-        # Numerical stability: shift by max
-        log_scores -= np.max(log_scores)
+            # Ensure the scaled heuristic is never zero before taking log, e.g., [1e-6, 1]
+            etas = np.clip(etas_scaled, 1e-6, 1.0) 
 
-        # Convert to probabilities
-        probs = np.exp(log_scores)
-        probs /= probs.sum()
+            # 3. Log-space scoring: log(tau^alpha * eta^beta) = alpha*log(tau) + beta*log(eta)
+            # Taus (pheromones) are used raw (but are clipped in _update_pheromones)
+            log_scores = (self.alpha * np.log(taus + 1e-9) + 
+                        self.beta * np.log(etas + 1e-9))
 
-        # Choose operation
-        choice = np.random.choice(ready_ops_arr, p=probs)
-        return int(choice)
+            # 4. Numerical stability: shift by max score
+            log_scores -= np.max(log_scores)
+
+            # 5. Convert back to unnormalized probabilities (antilog)
+            probs = np.exp(log_scores)
+            #log.debug(log_scores)
+            
+            # 6. Normalize
+            probs /= probs.sum()
+
+            # 7. Choose operation
+            choice = np.random.choice(ready_ops_arr, p=probs)
+            #log.debug(choice)
+            return int(choice)
 
 
 
@@ -291,18 +310,18 @@ class ACO_Solver:
         batch_best_seq = ant_sequences[batch_best_idx]
         batch_best_makespan = makespans[batch_best_idx]
 
-        dynamic_Q = self.q  # scaled deposition base
+        Q = self.q  # scaled deposition base
 
         # 3) Per-ant deposition
         for seq, mk in zip(ant_sequences, makespans):
-            reward = dynamic_Q / max(1e-6, mk)
+            reward = Q / max(1e-6, mk)
             curr = self.num_ops  # dummy start
             for op_id in seq:
                 self.pheromone[curr, op_id] += reward
                 curr = op_id
-                # log.debug(f"desision {reward}")
+                #log.debug(f"desision {reward}")
         # 4) Iteration-best reinforcement
-        iter_reward = dynamic_Q / max(1e-6, batch_best_makespan)
+        iter_reward = Q / max(1e-6, batch_best_makespan)
         curr = self.num_ops
         for op_id in batch_best_seq:
             self.pheromone[curr, op_id] += iter_reward
@@ -312,53 +331,28 @@ class ACO_Solver:
 
         # 5) Global-best reinforcement
         if self.elitist and self.global_best_seq is not None:
-            global_reward = dynamic_Q / max(1e-6, self.global_best_schedule.makespan())
+            global_reward = Q / max(1e-6, self.global_best_schedule.makespan())
             curr = self.num_ops
             for op_id in self.global_best_seq:
-                self.pheromone[curr, op_id] += global_reward
+                self.pheromone[curr, op_id] += global_reward*self.elitist_factor
                 curr = op_id
+            #log.debug(f"gloabal{global_reward*self.elitist_factor}")
 
         # 6) Clip pheromones
         np.clip(self.pheromone, 0.01, 5.0, out=self.pheromone)
 
 
-    @staticmethod
-    def _build_solution_static(args):
-        self_obj, seed = args
-        
-        np.random.seed(seed)
-        random.seed(seed)
-
-        return self_obj._build_ant_solution()
-
-
-    def _parallel_build_solutions(self):
-        from multiprocessing import Pool, cpu_count
-        
-        # deterministic seed for each ant
-        seeds = [12345 + i for i in range(self.num_ants)]
-        
-        with Pool(cpu_count()) as pool:
-            results = pool.map(
-                ACO_Solver._build_solution_static,
-                [(self, seeds[i]) for i in range(self.num_ants)]
-            )
-        
-        ant_schedules, ant_sequences = zip(*results)
-        return list(ant_schedules), list(ant_sequences)
-
-
 if __name__ == "__main__":
-    instance_name: str = "ta02"
+    instance_name: str = "la01"
     #instance = benchmarking.load_benchmark_instance(instance_name)
     instance = benchmarking.load_benchmark_instance(instance_name)
     aco_solver = ACO_Solver(
         instance=instance,
         num_ants=200,
-        iterations=1200,
+        iterations=2000,
         alpha=1,
         beta=2,
-        rho=0.5,
+        rho=0.1,
         q=1.0,
         elitist=True,
         elitist_factor=1

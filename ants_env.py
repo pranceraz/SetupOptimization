@@ -50,9 +50,9 @@ class SteppableACO(ACO_Solver):
 
     def set_params(self, alpha, beta, rho):
         """Update parameters dynamically."""
-        self.alpha = float(np.clip(alpha, 0.1, 3.0))
-        self.beta = float(np.clip(beta, 1.0, 5.0))
-        self.rho = float(np.clip(rho, 0.01, 0.4))
+        self.alpha = float(np.clip(alpha, 0.1, 5.0))
+        self.beta = float(np.clip(beta, 0.1, 5.0))
+        self.rho = float(np.clip(rho, 0.01, 0.6))
 
 
     def get_pheromone_entropy(self):
@@ -81,84 +81,48 @@ class SteppableACO(ACO_Solver):
         # Result: 1.0 = Chaos/Exploration, 0.0 = Converged/Stagnation
         order_score = np.tanh(cv) 
         return 1.0 - order_score
-
+    
+    def _get_max_pheromone(self):
+        """Returns the maximum pheromone value, normalized by the upper clip limit (5.0)."""
+        # The upper clip limit is defined as 5.0 in ACO_Solver._update_pheromones
+        max_phero = np.max(self.pheromone)
+        log.debug(f"the max pheromone is {max_phero}")
+        return float(max_phero / 5.0)
+        
     def get_state(self):
         """
         Extract features for the Neural Network.
-        Features:
-        1. Normalized Makespan
-        2. Chaos Score
-        3. Pheromone Entropy
-        4. Recent Improvement (Delta)
+        Returns 4 features: [Norm_Makespan, Chaos_Score, Max_Pheromone_Norm, Norm_Stagnation]
+        
+        This aligns with ParameterController(input_dim=4).
         """
-
-        # --- 1. Normalized Makespan ---
+        # Feature 1: Normalized Makespan (Absolute Quality)
         current_makespan = (
-            self.global_best_schedule.makespan()
-            if self.global_best_schedule is not None
-            else 5000
+            self.global_best_schedule.makespan() 
+            if self.global_best_schedule is not None 
+            else self.c_opt * 2.0 # Fallback safety value
         )
-
-        # Set initial_makespan once
-        if self.initial_makespan == 5000.0 and self.global_best_schedule is not None:
-            self.initial_makespan = current_makespan
-
-        norm_makespan = current_makespan / (self.initial_makespan + 1e-9)
-
-
-        # --- 2. Chaos Score ---
+        
+        # CRITICAL FIX: Ensure C_opt is set and is non-zero
+        safe_c_opt = max(self.c_opt, 1e-9)
+        norm_makespan = current_makespan / safe_c_opt
+        
+        # Feature 2: Chaos Score
         chaos_score = self._calculate_chaos_score()
+        
+        # Feature 3: Max Pheromone Concentration (Exploitation Strength)
+        max_phero_norm = self._get_max_pheromone()
 
+        # Feature 4: Stagnation Counter (Normalized)
+        norm_stagnation = min(self.stagnation_counter / 50.0, 1.0)
 
-        # --- 3. Pheromone Entropy ---
-        entropy = self.get_pheromone_entropy()
-
-
-        # --- 4. Recent Improvement (Delta) ---
-        if not hasattr(self, "prev_best"):
-            self.prev_best = current_makespan
-
-        delta = (self.prev_best - current_makespan) / (self.prev_best + 1e-9)
-        delta = np.clip(delta, -1, 1)
-
-        # Update prev_best for next call
-        self.prev_best = current_makespan
-
-
-        # Final state vector
         return torch.tensor([
-            norm_makespan,   # Feature 1
-            chaos_score,     # Feature 2
-            entropy,         # Feature 3
-            delta            # Feature 4
+            norm_makespan,
+            chaos_score,
+            max_phero_norm,
+            norm_stagnation 
         ], dtype=torch.float32)
-
     
-
-    # @staticmethod
-    # def _build_solution_static(args):
-    #     """
-    #     Static method for parallel building. Supports deterministic per-thread seeds.
-    #     """
-    #     self_obj, seed = args
-    #     np.random.seed(seed)
-    #     random.seed(seed)
-    #     return self_obj._build_ant_solution()
-
-    # def _parallel_build_solutions(self):
-    #     """
-    #     Builds solutions in parallel using threads (lighter than multiprocessing on Windows).
-    #     """
-    #     seeds = list(range(self.num_ants))
-    #     with ThreadPoolExecutor() as executor:
-    #         results = list(executor.map(
-    #             SteppableACO._build_solution_static,
-    #             [(self, s) for s in seeds]
-    #         ))
-
-        ant_schedules, ant_sequences = zip(*results)
-        return list(ant_schedules), list(ant_sequences)
-
     def run_batch(self, num_iterations=10):
         """
         Runs the ACO for a batch sequentially.

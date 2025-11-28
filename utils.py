@@ -1,7 +1,7 @@
 
 import job_shop_lib.benchmarking as benchmarking
 
-def inspect_instance(instance_name:str = "ft06",verbose = False):
+def inspect_instance(instance_name:str = "ft06", verbose = False):
     """
     Loads the benchmark instance and
     prints its structure to the console.

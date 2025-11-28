@@ -26,10 +26,10 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     # Initialize Environment
     aco = SteppableACO(
         instance=instance, 
-        num_ants=200, 
+        num_ants=50, 
         iterations=0, 
-        alpha=1.0, beta=2, rho=0.1,q= 200,
-        elitist= True, elitist_factor= .5  
+        alpha=1.0, beta=2, rho=0.1,q= .05,
+        elitist= True, elitist_factor= 5
     )
 
     # We must build one solution so 'global_best_schedule' exists
@@ -46,7 +46,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     optimizer = optim.Adam(controller.parameters(), lr=0.001)
 
       
-    checkpoint_file = "scratch24.pth"
+    checkpoint_file = "scratchft.pth"
     start_step = 0
     if LOAD_CHECKPOINT and os.path.exists(checkpoint_file):
         print(f"Checkpoint found! Loading {checkpoint_file} ...")
@@ -61,17 +61,17 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
     else:
         print("No checkpoint found. Starting fresh training.")
 
-    MAX_STEPS = 1000
-    BATCH_ITERS = 50
+    MAX_STEPS = 100000
+    BATCH_ITERS = 10
 
     # Tunable parameters
     IMPROVEMENT_SCALE = 2.0     # how strongly improvement is rewarded
     STAGNATION_PENALTY = -0.02   # mild, not catastrophic
-    CHAOS_LOW_PENALTY = -0.2
+    CHAOS_LOW_PENALTY = -0.4
     CHAOS_HIGH_PENALTY = -0.2
 
-    CHAOS_LOW = 0.02
-    CHAOS_GOOD_LOW = 0.1
+    CHAOS_LOW = 0.1
+    CHAOS_GOOD_LOW = 0.3
     CHAOS_GOOD_HIGH = 0.40
     CHAOS_HIGH = 0.70
     no_improvement_for = 0
@@ -168,7 +168,7 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
                 # 3. MILD STAGNATION PENALTY
                 # ===========================
                 # Only if no improvement for multiple steps
-                if no_improvement_for >= 20:
+                if no_improvement_for >= 50:
                     reward += STAGNATION_PENALTY
                     log.warning(
                         f"STAGNATION: No improvement for {no_improvement_for} steps | "
@@ -210,4 +210,4 @@ def train_nn_aco(instance_name,LOAD_CHECKPOINT = True ):
 
 
 if __name__ == "__main__":
-    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= False)
+    train_nn_aco(instance_name="ft06", LOAD_CHECKPOINT= True)

@@ -51,7 +51,7 @@ class ParameterController(nn.Module):
         decoded_action = {
             'alpha': float(np.clip((torch.sigmoid(action[0]).item() * 4.9) + 0.1, 0.1, 3.0)),
             'beta':  float(np.clip((torch.sigmoid(action[1]).item() * 4.9) + 0.1, 1.0, 5.0)),
-            'rho':   float(np.clip((torch.sigmoid(action[2]).item() * 0.98) + 0.01, 0.01, 0.4))
+            'rho':   float(np.clip((torch.sigmoid(action[2]).item() * 0.98) + 0.01, 0.01, 0.6))
         }
 
         return decoded_action, log_prob
