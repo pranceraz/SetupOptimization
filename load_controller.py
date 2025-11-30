@@ -57,7 +57,8 @@ def run_inference(model_path, instance_name, num_ants=200, iterations_per_batch=
         beta=1.0,
         rho=0.1,
         q=.1,
-        elitist =True
+        elitist =True,
+        elitist_factor= 20
     )
     
     # Build initial solution

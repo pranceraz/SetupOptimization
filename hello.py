@@ -2,26 +2,26 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # Load data from CSV file
-df = pd.read_csv('notsoawsm.csv')  # Replace 'your_data.csv' with your actual filename
+df = pd.read_csv('ft10fr.csv')  # Replace 'your_data.csv' with your actual filename
 
 # Create the plot
 plt.figure(figsize=(12, 6))
 
 # Plot iteration makespan
-plt.plot(df['iteration'], df['best_makespan'], marker='o', label='Iteration Makespan', linewidth=2, markersize=8)
+plt.plot(df['iteration'], df['best_makespan'], marker='o', label='Iteration Makespan', linewidth=.5, markersize=1)
 
 # Plot global best makespan
-plt.plot(df['iteration'], df['global_best_makespan'], marker='s', label='Global Best Makespan', linewidth=2, markersize=8)
+plt.plot(df['iteration'], df['global_best_makespan'], marker='s', label='Global Best Makespan', linewidth=2, markersize=2)
 
 # Add a baseline C_opt (assuming it's the final global best value)
 #c_opt = df['global_best_makespan'].iloc[-1]
-c_opt = 55
+c_opt = 930
 plt.axhline(y=c_opt, color='r', linestyle='--', linewidth=2, label=f'C_opt Baseline ({c_opt})')
 
 # Formatting
 plt.xlabel('Iteration', fontsize=12, fontweight='bold')
 plt.ylabel('Makespan', fontsize=12, fontweight='bold')
-plt.title('ACO Convergence: Iteration Makespan vs Global Best', fontsize=14, fontweight='bold')
+plt.title('ACO Convergence ft10 Benchmark: Iteration Makespan vs Global Best', fontsize=14, fontweight='bold')
 plt.legend(fontsize=10, loc='best')
 plt.grid(True, alpha=0.3)
 
